@@ -54,7 +54,7 @@
         if (/^Segment \d+ .* • .* • \d+ minutes?$/.test(text)) break;
         candidate = candidate.parentElement;
       }
-      if (candidate && !seen.has(candidate)) {
+      if (candidate && candidate !== document.body && !seen.has(candidate)) {
         seen.add(candidate);
         cards.push(candidate);
       }
@@ -75,7 +75,12 @@
 
     const labelRect = labelNode.getBoundingClientRect();
     return Array.from(document.querySelectorAll("*")).find((element) => {
-      if (elementText(element) !== value || !element.getClientRects().length)
+      if (
+        element === document.body ||
+        element === document.documentElement ||
+        elementText(element) !== value ||
+        !element.getClientRects().length
+      )
         return false;
       const rect = element.getBoundingClientRect();
       return (
@@ -103,7 +108,10 @@
     const option = Array.from(document.querySelectorAll("*"))
       .filter(
         (element) =>
-          elementText(element) === value && element.getClientRects().length,
+          element !== document.body &&
+          element !== document.documentElement &&
+          elementText(element) === value &&
+          element.getClientRects().length,
       )
       .map((element) => ({ element, rect: element.getBoundingClientRect() }))
       .filter(
