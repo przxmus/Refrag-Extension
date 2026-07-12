@@ -75,6 +75,23 @@
     });
   }
 
+  async function selectSegment(segmentNumber) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const card = getSegmentCards().find(
+        (candidate) =>
+          Number(candidate.innerText.match(/^Segment (\d+)/)?.[1]) ===
+          segmentNumber,
+      );
+      if (card) {
+        card.click();
+        await pause(100);
+        return;
+      }
+      await pause(100);
+    }
+    throw new Error(`Could not find segment ${segmentNumber}.`);
+  }
+
   function findFieldTrigger(label, value) {
     const labelNode = Array.from(
       document.querySelectorAll("h1,h2,h3,h4,h5,h6,label,div,span"),
@@ -270,7 +287,9 @@
         const map = parts[0]?.replace(/^Segment \d+\s*/, "").trim();
         const mod = parts[1];
         if (!map || !mod) throw new Error("Could not read a routine segment.");
-        return { card, map, mod };
+        const number = Number(card.innerText.match(/^Segment (\d+)/)?.[1]);
+        if (!number) throw new Error("Could not read a routine segment number.");
+        return { number, map, mod };
       });
 
       const targetMaps = shuffledMapAssignments(
@@ -288,7 +307,7 @@
       const distinctMods = [...new Set(targetMods)];
       const allowedMods = [];
       for (const [index, segment] of segments.entries()) {
-        segment.card.click();
+        await selectSegment(segment.number);
         const mapTrigger = await waitForFieldTrigger("Map", segment.map);
         await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
         const modTrigger = await waitForFieldTrigger("Mod");
@@ -307,7 +326,7 @@
       }
 
       for (const [index, segment] of segments.entries()) {
-        segment.card.click();
+        await selectSegment(segment.number);
         const mapTrigger = await waitForFieldTrigger("Map");
         await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
         const modTrigger = await waitForFieldTrigger("Mod");
