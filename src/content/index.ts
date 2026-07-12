@@ -1,6 +1,7 @@
 import { loadConfig, type ShuffleConfig } from "../shared/config";
 import type { Segment } from "../shared/types";
 import { generateShuffle, normalize } from "../shuffle/engine";
+import { findReviewAction } from "./actions";
 
 const BUTTON_ID = "refrag-routine-shuffler";
 const WAIT_TIMEOUT = 20_000;
@@ -242,9 +243,9 @@ async function shuffle(button: HTMLElement): Promise<void> {
 
 function mount(): void {
   if (document.getElementById(BUTTON_ID)) return;
-  const publish = leafAction("Review & Publish");
-  if (!leafAction("Delete") || !publish) return;
-  const button = publish.cloneNode(false) as HTMLElement;
+  const reviewAction = findReviewAction((label) => leafAction(label));
+  if (!leafAction("Delete") || !reviewAction) return;
+  const button = reviewAction.cloneNode(false) as HTMLElement;
   button.id = BUTTON_ID;
   button.textContent = "Shuffle";
   button.title = "Shuffle maps and mods using extension settings";
@@ -258,7 +259,7 @@ function mount(): void {
         button.textContent = "Try again";
       }),
   );
-  publish.insertAdjacentElement("beforebegin", button);
+  reviewAction.insertAdjacentElement("beforebegin", button);
 }
 
 new MutationObserver(mount).observe(document.documentElement, {
