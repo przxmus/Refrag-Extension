@@ -122,24 +122,52 @@ async function selectSegment(number: number): Promise<void> {
   await pause(120);
 }
 
-function dropdown(label: string): HTMLButtonElement {
-  const heading = [...editor().querySelectorAll("h1")].find((node) =>
-    same(text(node), label),
+const DROPDOWN_TRIGGER =
+  'button[aria-haspopup="true"], button[role="combobox"], [role="combobox"]';
+
+function dropdown(label: string): HTMLElement {
+  const root = editor();
+  const labelledTrigger = [
+    ...root.querySelectorAll<HTMLElement>(DROPDOWN_TRIGGER),
+  ].find((node) =>
+    [node.getAttribute("aria-label"), node.getAttribute("title")].some(
+      (value) => value && same(value, label),
+    ),
   );
-  const trigger = heading?.parentElement?.querySelector<HTMLButtonElement>(
-    'button[aria-haspopup="true"]',
-  );
+  if (labelledTrigger) return labelledTrigger;
+
+  const labels = [
+    ...root.querySelectorAll<HTMLElement>("h1, h2, h3, label, p, span, div"),
+  ].filter((node) => same(text(node), label) && visible(node));
+  let trigger: HTMLElement | undefined;
+  for (const labelNode of labels) {
+    let container = labelNode.parentElement;
+    while (container && root.contains(container)) {
+      const controls = [
+        ...container.querySelectorAll<HTMLElement>(DROPDOWN_TRIGGER),
+      ].filter(visible);
+      if (controls.length === 1) {
+        trigger = controls[0];
+        break;
+      }
+      if (container === root) break;
+      container = container.parentElement;
+    }
+    if (trigger) break;
+  }
   if (!trigger) throw new Error(`Could not find Refrag's ${label} selector.`);
   return trigger;
 }
 
-function menuFor(trigger: HTMLButtonElement): HTMLElement | undefined {
+function menuFor(trigger: HTMLElement): HTMLElement | undefined {
   const controlled = trigger.getAttribute("aria-controls")
     ? document.getElementById(trigger.getAttribute("aria-controls")!)
     : null;
   if (controlled && visible(controlled)) return controlled;
   const menus = [
-    ...document.querySelectorAll<HTMLElement>('[role="menu"]'),
+    ...document.querySelectorAll<HTMLElement>(
+      '[role="menu"], [role="listbox"]',
+    ),
   ].filter(visible);
   return (
     menus.find((menu) => menu.getAttribute("aria-labelledby") === trigger.id) ??
@@ -177,7 +205,7 @@ async function choose(label: string, value: string): Promise<void> {
   }, `Could not confirm ${label} “${value}”.`);
   if (same(label, "Map")) {
     await waitFor(
-      () => !dropdown("Mod").disabled,
+      () => dropdown("Mod").getAttribute("aria-disabled") !== "true",
       "The Mod selector did not finish updating.",
     );
     await pause(120);
