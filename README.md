@@ -86,9 +86,9 @@ bun run check
 
 ## Release automation
 
-- Pull requests run formatting checks, type checking, linting, tests, and a production build.
+- Pull requests run formatting checks, type checking, linting, tests, and a production build. The same validation can be started manually.
 - Commits to `main` or `master` create beta prereleases with generated release notes.
-- The manually triggered **Release build** workflow validates a semantic version and creates a stable ZIP release with generated notes.
+- The manually triggered **Release** workflow increments the latest stable version as a major, minor, or patch release, or accepts a custom semantic version. It creates a stable ZIP release with generated notes.
 
 ## License
 
