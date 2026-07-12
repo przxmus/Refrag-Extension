@@ -192,6 +192,9 @@
       const targetMaps = shuffledMapAssignments(
         segments.map((segment) => segment.map),
       );
+      const targetMods = shuffledMapAssignments(
+        segments.map((segment) => segment.mod),
+      );
       if (targetMaps.every((map, index) => map === segments[index].map)) {
         throw new Error(
           "This routine needs at least two distinct maps to create a new combination.",
@@ -202,6 +205,8 @@
         segment.card.click();
         const mapTrigger = await waitForFieldTrigger("Map", segment.map);
         await chooseDropdownValue(mapTrigger, targetMaps[index]);
+        const modTrigger = await waitForFieldTrigger("Mod", segment.mod);
+        await chooseDropdownValue(modTrigger, targetMods[index]);
 
         const save = saveButton();
         if (!save) throw new Error("Could not find Refrag’s Save button.");
