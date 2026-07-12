@@ -20,9 +20,19 @@ async function generateShuffleAsync(
     await pause(0);
     return generateShuffle(segments, config);
   }
+  const workerSource = await fetch(workerUrl).then((response) => {
+    if (!response.ok) throw new Error("Could not load the shuffle worker.");
+    return response.text();
+  });
+  const blobUrl = URL.createObjectURL(
+    new Blob([workerSource], { type: "text/javascript" }),
+  );
   return new Promise<Segment[]>((resolve, reject) => {
-    const worker = new Worker(workerUrl);
-    const finish = () => worker.terminate();
+    const worker = new Worker(blobUrl);
+    const finish = () => {
+      worker.terminate();
+      URL.revokeObjectURL(blobUrl);
+    };
     worker.addEventListener("message", (event: MessageEvent) => {
       finish();
       const response = event.data as { error?: string; result?: Segment[] };
