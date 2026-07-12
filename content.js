@@ -163,10 +163,12 @@
 
     try {
       const segments = cards.map((card) => {
-        const [, map, mod] =
-          card.innerText
-            .replace(/\s+/g, " ")
-            .match(/^Segment \d+ (.*?) • (.*?) • /) || [];
+        const parts = card.innerText
+          .replace(/\s+/g, " ")
+          .split("•")
+          .map((part) => part.trim());
+        const map = parts[0]?.replace(/^Segment \d+\s*/, "").trim();
+        const mod = parts[1];
         if (!map || !mod) throw new Error("Could not read a routine segment.");
         return { card, map, mod };
       });
