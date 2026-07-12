@@ -122,11 +122,9 @@
     throw new Error(`Could not find Refrag’s ${label} selector.`);
   }
 
-  async function chooseDropdownValue(trigger, value) {
-    trigger.click();
-    await pause(80);
+  function dropdownOption(trigger, value) {
     const triggerRect = trigger.getBoundingClientRect();
-    const option = Array.from(document.querySelectorAll("*"))
+    return Array.from(document.querySelectorAll("*"))
       .filter(
         (element) =>
           element !== document.body &&
@@ -142,9 +140,24 @@
           rect.top >= triggerRect.bottom - 2,
       )
       .sort((left, right) => right.rect.top - left.rect.top)[0]?.element;
-    if (!option) throw new Error(`Could not select map ${value}.`);
+  }
+
+  async function chooseDropdownValue(trigger, value, label) {
+    trigger.click();
+    await pause(80);
+    const option = dropdownOption(trigger, value);
+    if (!option) throw new Error(`Could not select ${label} ${value}.`);
     option.click();
     await pause(80);
+  }
+
+  async function availableDropdownValues(trigger, values) {
+    trigger.click();
+    await pause(80);
+    const available = values.filter((value) => dropdownOption(trigger, value));
+    trigger.click();
+    await pause(80);
+    return available;
   }
 
   function shuffledMapAssignments(currentMaps) {
@@ -178,6 +191,32 @@
 
   function saveButton() {
     return actionElement("Save");
+  }
+
+  function assignCompatibleMods(allowedMods, mods) {
+    const remaining = new Map();
+    for (const mod of mods) remaining.set(mod, (remaining.get(mod) || 0) + 1);
+    const assignment = Array(allowedMods.length);
+    const order = allowedMods
+      .map((options, index) => ({ index, options }))
+      .sort((left, right) => left.options.length - right.options.length);
+
+    function visit(position) {
+      if (position === order.length) return true;
+      const { index, options } = order[position];
+      const candidates = options
+        .filter((mod) => remaining.get(mod) > 0)
+        .sort(() => crypto.getRandomValues(new Uint32Array(1))[0] - 2 ** 31);
+      for (const mod of candidates) {
+        remaining.set(mod, remaining.get(mod) - 1);
+        assignment[index] = mod;
+        if (visit(position + 1)) return true;
+        remaining.set(mod, remaining.get(mod) + 1);
+      }
+      return false;
+    }
+
+    return visit(0) ? assignment : null;
   }
 
   async function shuffleRoutine(button) {
@@ -214,12 +253,33 @@
         );
       }
 
+      const distinctMods = [...new Set(targetMods)];
+      const allowedMods = [];
       for (const [index, segment] of segments.entries()) {
         segment.card.click();
         const mapTrigger = await waitForFieldTrigger("Map", segment.map);
-        await chooseDropdownValue(mapTrigger, targetMaps[index]);
+        await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
         const modTrigger = await waitForFieldTrigger("Mod");
-        await chooseDropdownValue(modTrigger, targetMods[index]);
+        allowedMods[index] = await availableDropdownValues(
+          modTrigger,
+          distinctMods,
+        );
+      }
+
+      const compatibleMods = assignCompatibleMods(allowedMods, targetMods);
+      if (!compatibleMods) {
+        location.reload();
+        throw new Error(
+          "Refrag does not allow a complete shuffled map and mod combination for this routine.",
+        );
+      }
+
+      for (const [index, segment] of segments.entries()) {
+        segment.card.click();
+        const mapTrigger = await waitForFieldTrigger("Map");
+        await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
+        const modTrigger = await waitForFieldTrigger("Mod");
+        await chooseDropdownValue(modTrigger, compatibleMods[index], "mod");
 
         const save = saveButton();
         if (!save) throw new Error("Could not find Refrag’s Save button.");
