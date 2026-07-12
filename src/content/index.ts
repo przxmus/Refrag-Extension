@@ -5,7 +5,7 @@ import { findPublishConfirmation, findReviewAction } from "./actions";
 import { acquireInteractionLock } from "./interaction-lock";
 import { isRoutineListPath, routineViewUrl } from "./routine-navigation";
 
-const BUTTON_ID = "refrag-routine-shuffler";
+const BUTTON_ID = "refrag-plus-shuffle";
 const WAIT_TIMEOUT = 20_000;
 const pause = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -297,7 +297,7 @@ function mount(): void {
     "click",
     () =>
       void shuffle(button).catch((error: unknown) => {
-        console.error("[Refrag Routine Shuffler]", error);
+        console.error("[Refrag+]", error);
         button.textContent = "Try again";
       }),
   );

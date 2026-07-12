@@ -59,7 +59,7 @@ jobs:
       - name: Package extension
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: cd dist && zip -r "../refrag-routine-shuffler-v${VERSION}.zip" .
+        run: cd dist && zip -r "../refrag-plus-v${VERSION}.zip" .
       - name: Generate release notes from commits
         env:
           PREVIOUS_TAG: ${{ steps.version.outputs.previous_tag }}
@@ -68,4 +68,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: gh release create "v${VERSION}" "refrag-routine-shuffler-v${VERSION}.zip" --notes-file release-notes.md --title "v${VERSION}" --target "$GITHUB_SHA"
+        run: gh release create "v${VERSION}" "refrag-plus-v${VERSION}.zip" --notes-file release-notes.md --title "v${VERSION}" --target "$GITHUB_SHA"

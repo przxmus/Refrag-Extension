@@ -1,12 +1,13 @@
-# Refrag Routine Shuffler
+# Refrag+
 
-A configurable Chrome extension that safely shuffles maps and mods in editable [Refrag](https://play.refrag.gg/) routines.
+A Chrome extension that adds useful routine tools to [Refrag](https://play.refrag.gg/), including safe, configurable map and mod shuffling.
 
 The extension adds a **Shuffle** action between **Delete** and **Review & Publish / Update**. It uses Refrag's existing editor, preserves the number of occurrences of every map and mod, and never changes segment durations.
 
 ## Features
 
 - Shuffles maps and mods while preserving their original counts.
+- Opens a routine when its card or title is selected.
 - Keeps segment order, titles, completion settings, and durations unchanged.
 - Prevents duplicate or previously used map/mod combinations when requested.
 - Supports configurable repeat gaps for maps, mods, and combinations.
@@ -19,7 +20,7 @@ The extension adds a **Shuffle** action between **Delete** and **Review & Publis
 
 ## Installation from GitHub Releases
 
-1. Download the latest `refrag-routine-shuffler-vX.Y.Z.zip` archive from **Releases**.
+1. Download the latest `refrag-plus-vX.Y.Z.zip` archive from **Releases**.
 2. Extract it into a permanent directory. Do not select the ZIP file directly.
 3. Open `brave://extensions` or `chrome://extensions`.
 4. Enable **Developer mode**.
@@ -31,7 +32,7 @@ Beta archives are installed in the same way, but may contain unfinished changes.
 
 ### Updating
 
-Download and extract the new release over the existing extension directory. Then open the browser's extensions page, press **Reload** on Refrag Routine Shuffler, and refresh Refrag.
+Download and extract the new release over the existing extension directory. Then open the browser's extensions page, press **Reload** on Refrag+, and refresh Refrag.
 
 Browser store installation and automatic updates are not currently available.
 
@@ -69,7 +70,7 @@ Strict rules can be impossible for some routines. In that case, the extension st
 
 ## Privacy and permissions
 
-Refrag Routine Shuffler requests only the browser `storage` permission. It uses it to synchronize settings between browser sessions.
+Refrag+ requests only the browser `storage` permission. It uses it to synchronize settings between browser sessions.
 
 The extension runs only on Refrag routine editor URLs, does not read unrelated pages, does not include analytics, and does not send data to external services.
 

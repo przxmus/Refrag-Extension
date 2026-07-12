@@ -1,4 +1,4 @@
-const LOCK_ID = "refrag-routine-shuffler-lock";
+const LOCK_ID = "refrag-plus-interaction-lock";
 const BLOCKED_KEYS = new Set([
   "ArrowDown",
   "ArrowLeft",

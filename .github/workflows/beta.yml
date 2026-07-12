@@ -24,7 +24,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - name: Package extension
-        run: cd dist && zip -r ../refrag-routine-shuffler-beta-${GITHUB_SHA::7}.zip .
+        run: cd dist && zip -r ../refrag-plus-beta-${GITHUB_SHA::7}.zip .
       - name: Generate release notes from commits
         run: |
           PREVIOUS_TAG="$(git tag --list 'beta-*' --sort=-creatordate | head -n 1)"
@@ -32,4 +32,4 @@ jobs:
       - name: Create beta release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "beta-${GITHUB_SHA::7}" "refrag-routine-shuffler-beta-${GITHUB_SHA::7}.zip" --prerelease --notes-file release-notes.md --title "Beta ${GITHUB_SHA::7}" --target "$GITHUB_SHA"
+        run: gh release create "beta-${GITHUB_SHA::7}" "refrag-plus-beta-${GITHUB_SHA::7}.zip" --prerelease --notes-file release-notes.md --title "Beta ${GITHUB_SHA::7}" --target "$GITHUB_SHA"

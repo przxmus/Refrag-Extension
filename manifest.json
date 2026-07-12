@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Refrag Routine Shuffler",
-  "description": "Shuffles routine maps and mods using configurable constraints.",
+  "name": "Refrag+",
+  "description": "Adds configurable routine tools and easier navigation to Refrag.",
   "version": "1.0.0",
   "permissions": ["storage"],
   "action": {
-    "default_title": "Refrag Routine Shuffler",
+    "default_title": "Refrag+",
     "default_popup": "popup.html"
   },
   "content_scripts": [
