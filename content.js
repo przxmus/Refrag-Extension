@@ -126,8 +126,6 @@
     const triggerRect = trigger.getBoundingClientRect();
     const isTrigger = (element) =>
       element === trigger || trigger.contains(element) || element.contains(trigger);
-    const gap = (startA, endA, startB, endB) =>
-      Math.max(startA - endB, startB - endA, 0);
     const depth = (element) => {
       let result = 0;
       for (let node = element; node?.parentElement; node = node.parentElement) {
@@ -147,30 +145,18 @@
       )
       .map((element) => {
         const rect = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
         const menu = element.closest(
-          '[role="option"],[role="menuitem"],[role="listbox"],[role="menu"],[data-radix-select-content],[data-radix-popper-content-wrapper]',
+          'menu,[role="option"],[role="menuitem"],[role="listbox"],[role="menu"],[data-radix-select-content],[data-radix-popper-content-wrapper]',
         );
         return {
           element,
-          rect,
           inMenu: Boolean(menu),
           depth: depth(element),
           distance:
-            gap(rect.left, rect.right, triggerRect.left, triggerRect.right) +
-            gap(rect.top, rect.bottom, triggerRect.top, triggerRect.bottom),
-          visible:
-            rect.width > 0 &&
-            rect.height > 0 &&
-            style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            style.pointerEvents !== "none" &&
-            Number(style.opacity) !== 0,
+            Math.abs(rect.left - triggerRect.left) +
+            Math.abs(rect.top - triggerRect.top),
         };
       })
-      .filter(
-        ({ visible, distance }) => visible && distance <= 500,
-      )
       .sort((left, right) => {
         return (
           Number(right.inMenu) - Number(left.inMenu) ||
