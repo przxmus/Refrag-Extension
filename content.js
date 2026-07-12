@@ -218,7 +218,7 @@
         segment.card.click();
         const mapTrigger = await waitForFieldTrigger("Map", segment.map);
         await chooseDropdownValue(mapTrigger, targetMaps[index]);
-        const modTrigger = await waitForFieldTrigger("Mod", segment.mod);
+        const modTrigger = await waitForFieldTrigger("Mod");
         await chooseDropdownValue(modTrigger, targetMods[index]);
 
         const save = saveButton();
