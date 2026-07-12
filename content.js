@@ -2,7 +2,23 @@
   "use strict";
 
   const BUTTON_ID = "refrag-routine-shuffler";
+  const STYLE_ID = "refrag-routine-shuffler-style";
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function addStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${BUTTON_ID} {
+        background-color: #4d7c61 !important;
+        color: #ffffff !important;
+      }
+      #${BUTTON_ID}:hover { background-color: #5d9171 !important; }
+      #${BUTTON_ID}[aria-disabled="true"] { cursor: wait; opacity: .7; }
+    `;
+    document.head.append(style);
+  }
 
   function elementText(element) {
     return (element.innerText || element.textContent || "")
@@ -51,39 +67,55 @@
     });
   }
 
-  function fieldSelect(label) {
+  function findFieldTrigger(label, value) {
     const labelNode = Array.from(
       document.querySelectorAll("h1,h2,h3,h4,h5,h6,label,div,span"),
     ).find((element) => directText(element) === label);
     if (!labelNode) return null;
 
-    let scope = labelNode;
-    for (let depth = 0; scope && depth < 5; depth += 1) {
-      const select = scope.querySelector("select");
-      if (select) return select;
-      scope = scope.parentElement;
-    }
-    return null;
+    const labelRect = labelNode.getBoundingClientRect();
+    return Array.from(document.querySelectorAll("*")).find((element) => {
+      if (elementText(element) !== value || !element.getClientRects().length)
+        return false;
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.width > 100 &&
+        rect.left >= labelRect.left - 2 &&
+        rect.top >= labelRect.bottom - 2 &&
+        rect.top <= labelRect.bottom + 88
+      );
+    });
   }
 
-  async function waitForEditor() {
+  async function waitForFieldTrigger(label, value) {
     for (let attempt = 0; attempt < 30; attempt += 1) {
-      const map = fieldSelect("Map");
-      const mod = fieldSelect("Mod");
-      if (map && mod) return { map, mod };
+      const trigger = findFieldTrigger(label, value);
+      if (trigger) return trigger;
       await pause(100);
     }
-    throw new Error("The segment editor did not become available.");
+    throw new Error(`Could not find Refrag’s ${label} selector.`);
   }
 
-  function setNativeSelect(select, value) {
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLSelectElement.prototype,
-      "value",
-    ).set;
-    setter.call(select, value);
-    select.dispatchEvent(new Event("input", { bubbles: true }));
-    select.dispatchEvent(new Event("change", { bubbles: true }));
+  async function chooseDropdownValue(trigger, value) {
+    trigger.click();
+    await pause(80);
+    const triggerRect = trigger.getBoundingClientRect();
+    const option = Array.from(document.querySelectorAll("*"))
+      .filter(
+        (element) =>
+          elementText(element) === value && element.getClientRects().length,
+      )
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .filter(
+        ({ rect }) =>
+          rect.width > 100 &&
+          rect.left >= triggerRect.left - 4 &&
+          rect.top >= triggerRect.bottom - 2,
+      )
+      .sort((left, right) => right.rect.top - left.rect.top)[0]?.element;
+    if (!option) throw new Error(`Could not select map ${value}.`);
+    option.click();
+    await pause(80);
   }
 
   function shuffledMapAssignments(currentMaps) {
@@ -130,12 +162,14 @@
     button.textContent = "Shuffling…";
 
     try {
-      const segments = [];
-      for (const card of cards) {
-        card.click();
-        const { map, mod } = await waitForEditor();
-        segments.push({ card, map: map.value, mod: mod.value });
-      }
+      const segments = cards.map((card) => {
+        const [, map, mod] =
+          card.innerText
+            .replace(/\s+/g, " ")
+            .match(/^Segment \d+ (.*?) • (.*?) • /) || [];
+        if (!map || !mod) throw new Error("Could not read a routine segment.");
+        return { card, map, mod };
+      });
 
       const targetMaps = shuffledMapAssignments(
         segments.map((segment) => segment.map),
@@ -148,10 +182,8 @@
 
       for (const [index, segment] of segments.entries()) {
         segment.card.click();
-        const { map, mod } = await waitForEditor();
-        setNativeSelect(map, targetMaps[index]);
-        await pause(40);
-        if (mod.value !== segment.mod) setNativeSelect(mod, segment.mod);
+        const mapTrigger = await waitForFieldTrigger("Map", segment.map);
+        await chooseDropdownValue(mapTrigger, targetMaps[index]);
 
         const save = saveButton();
         if (!save) throw new Error("Could not find Refrag’s Save button.");
@@ -174,11 +206,10 @@
     if (!deleteButton || !publishButton) return;
 
     const button = publishButton.cloneNode(false);
+    addStyles();
     button.id = BUTTON_ID;
     button.type = "button";
     button.textContent = "Shuffle";
-    button.style.backgroundColor = "#4d7c61";
-    button.style.color = "#ffffff";
     button.title =
       "Shuffle maps while keeping all map, mod, and duration counts unchanged";
     button.addEventListener("click", () => {
