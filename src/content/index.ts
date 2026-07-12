@@ -43,13 +43,14 @@ function leafAction(
   label: string,
   root: ParentNode = document,
 ): HTMLElement | undefined {
-  return [
-    ...root.querySelectorAll<HTMLElement>("button, [role='button'], div, a"),
-  ].find(
+  const interactive = [
+    ...root.querySelectorAll<HTMLElement>("button, [role='button'], a"),
+  ].find((element) => same(text(element), label) && visible(element));
+  if (interactive) return interactive;
+
+  return [...root.querySelectorAll<HTMLElement>("div")].find(
     (element) =>
-      !element.children.length &&
-      same(text(element), label) &&
-      visible(element),
+      !element.children.length && same(text(element), label) && visible(element),
   );
 }
 
@@ -218,6 +219,10 @@ async function publishRoutine(): Promise<void> {
     "Could not find Publish or Update Routine in Refrag's dialog.",
   );
   confirmation.click();
+  await waitFor(
+    () => !dialog.isConnected || !visible(dialog),
+    "Refrag's publish dialog did not close after confirmation.",
+  );
 }
 
 async function shuffle(button: HTMLElement): Promise<void> {
