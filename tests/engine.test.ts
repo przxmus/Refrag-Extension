@@ -21,6 +21,10 @@ const segments: Segment[] = [
 const deterministic = (): number => 0.25;
 
 describe("generateShuffle", () => {
+  test("keeps automatic publishing disabled by default", () => {
+    expect(DEFAULT_CONFIG.runtime.autoPublish).toBeFalse();
+  });
+
   test("preserves map, mod, segment and duration data", () => {
     const result = generateShuffle(
       segments,

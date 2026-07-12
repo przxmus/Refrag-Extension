@@ -1,7 +1,8 @@
 import { loadConfig, type ShuffleConfig } from "../shared/config";
 import type { Segment } from "../shared/types";
 import { generateShuffle, normalize } from "../shuffle/engine";
-import { findReviewAction } from "./actions";
+import { findPublishConfirmation, findReviewAction } from "./actions";
+import { acquireInteractionLock } from "./interaction-lock";
 
 const BUTTON_ID = "refrag-routine-shuffler";
 const WAIT_TIMEOUT = 20_000;
@@ -200,9 +201,29 @@ async function save(segment: Segment): Promise<void> {
   await pause(900);
 }
 
+async function publishRoutine(): Promise<void> {
+  const reviewAction = findReviewAction((label) => leafAction(label));
+  if (!reviewAction) throw new Error("Could not find Refrag's review action.");
+
+  reviewAction.click();
+  const dialog = await waitFor(
+    () =>
+      [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].find(
+        visible,
+      ),
+    "Refrag's publish dialog did not open.",
+  );
+  const confirmation = await waitFor(
+    () => findPublishConfirmation((label) => leafAction(label, dialog)),
+    "Could not find Publish or Update Routine in Refrag's dialog.",
+  );
+  confirmation.click();
+}
+
 async function shuffle(button: HTMLElement): Promise<void> {
   if (running) return;
   running = true;
+  const interactionLock = acquireInteractionLock();
   button.setAttribute("aria-disabled", "true");
   button.textContent = "Preparing…";
   try {
@@ -232,9 +253,15 @@ async function shuffle(button: HTMLElement): Promise<void> {
       await choose("Mod", target.mod);
       await save(target);
     }
+    if (config.runtime.autoPublish) {
+      button.textContent = "Publishing…";
+      await publishRoutine();
+    }
     button.textContent = "Shuffled";
     await pause(1200);
   } finally {
+    interactionLock.release();
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     running = false;
     button.removeAttribute("aria-disabled");
     button.textContent = "Shuffle";

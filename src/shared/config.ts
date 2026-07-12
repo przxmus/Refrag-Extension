@@ -11,6 +11,7 @@ export interface ShuffleConfig {
   mods: RepeatConfig;
   runtime: {
     saveOnlyChangedSegments: boolean;
+    autoPublish: boolean;
     generationAttempts: number;
     validPlansToCompare: number;
     maxSearchNodesPerAttempt: number;
@@ -63,6 +64,7 @@ export const DEFAULT_CONFIG: ShuffleConfig = {
   },
   runtime: {
     saveOnlyChangedSegments: true,
+    autoPublish: false,
     generationAttempts: 200,
     validPlansToCompare: 20,
     maxSearchNodesPerAttempt: 50000,
@@ -167,6 +169,14 @@ export const CONFIG_SCHEMA: ConfigField[] = [
     type: "boolean",
     label: "Save changed segments only",
     description: "Skip segments whose pair stays unchanged.",
+  },
+  {
+    path: "runtime.autoPublish",
+    group: "Advanced",
+    type: "boolean",
+    label: "Publish after shuffling",
+    description:
+      "Automatically confirm Publish or Update Routine when finished.",
   },
   {
     path: "runtime.generationAttempts",

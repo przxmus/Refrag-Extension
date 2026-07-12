@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { findReviewAction } from "../src/content/actions";
+import {
+  findPublishConfirmation,
+  findReviewAction,
+} from "../src/content/actions";
 
 describe("findReviewAction", () => {
   test("supports routines that are published for the first time", () => {
@@ -16,5 +19,15 @@ describe("findReviewAction", () => {
         label === "Review & Update" ? label : undefined,
       ),
     ).toBe("Review & Update");
+  });
+});
+
+describe("findPublishConfirmation", () => {
+  test.each(["Publish", "Update Routine"])("supports %s", (expected) => {
+    expect(
+      findPublishConfirmation((label) =>
+        label === expected ? label : undefined,
+      ),
+    ).toBe(expected);
   });
 });
