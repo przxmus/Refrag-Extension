@@ -40,188 +40,80 @@
     );
   }
 
-  function directText(element) {
-    return Array.from(element.childNodes)
-      .filter((node) => node.nodeType === Node.TEXT_NODE)
-      .map((node) => node.textContent.trim())
-      .join(" ");
+  const visible = (element) => {
+    const rect = element?.getBoundingClientRect();
+    const style = element && getComputedStyle(element);
+    return Boolean(rect?.width && rect?.height && style?.display !== "none" && style?.visibility !== "hidden");
+  };
+
+  async function waitFor(find, message) {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const result = find();
+      if (result) return result;
+      await pause(50);
+    }
+    throw new Error(message);
   }
 
   function getSegmentCards() {
-    const seen = new Set();
-    const cards = [];
-    const headings = Array.from(
-      document.querySelectorAll("h1,h2,h3,h4,h5,h6,div,span"),
-    ).filter((element) => /^Segment \d+$/.test(directText(element)));
-
-    for (const heading of headings) {
-      let candidate = heading.parentElement;
-      while (candidate && candidate !== document.body) {
-        const text = candidate.innerText?.replace(/\s+/g, " ").trim() || "";
-        const segmentCount = (text.match(/\bSegment\s+\d+\b/g) || []).length;
-        if (
-          /^Segment\s+\d+\b/.test(text) &&
-          text.includes("•") &&
-          /\b\d+\s*(?:minute|minutes|min|mins)\b/.test(text) &&
-          segmentCount === 1
-        ) {
-          break;
-        }
-        candidate = candidate.parentElement;
-      }
-      if (candidate && candidate !== document.body && !seen.has(candidate)) {
-        seen.add(candidate);
-        cards.push(candidate);
-      }
-    }
-
-    return cards.sort((left, right) => {
-      const leftNumber = Number(left.innerText.match(/^Segment (\d+)/)?.[1]);
-      const rightNumber = Number(right.innerText.match(/^Segment (\d+)/)?.[1]);
-      return leftNumber - rightNumber;
-    });
+    const container = document.querySelector(".smooth-dnd-container.vertical");
+    if (!container) return [];
+    return Array.from(container.children)
+      .map((wrapper) => wrapper.querySelector(".item"))
+      .filter(Boolean);
   }
 
   async function selectSegment(segmentNumber) {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const card = getSegmentCards().find(
-        (candidate) =>
-          Number(candidate.innerText.match(/^Segment (\d+)/)?.[1]) ===
-          segmentNumber,
-      );
-      if (card) {
-        card.click();
-        await pause(100);
-        return;
-      }
-      await pause(100);
-    }
-    throw new Error(`Could not find segment ${segmentNumber}.`);
-  }
-
-  function findFieldTrigger(label, value) {
-    const labelNode = Array.from(
-      document.querySelectorAll("h1,h2,h3,h4,h5,h6,label,div,span"),
-    ).find((element) => directText(element) === label);
-    if (!labelNode) return null;
-
-    const labelRect = labelNode.getBoundingClientRect();
-    const candidates = Array.from(document.querySelectorAll("*"))
-      .filter((element) => {
-        if (
-          element === document.body ||
-          element === document.documentElement ||
-          !element.getClientRects().length
-        )
-          return false;
-        const rect = element.getBoundingClientRect();
-        return (
-          rect.width > 100 &&
-          rect.left >= labelRect.left - 2 &&
-          rect.top >= labelRect.bottom - 2 &&
-          rect.top <= labelRect.bottom + 88
-        );
-      })
-      .sort(
-        (left, right) =>
-          left.getBoundingClientRect().width *
-            left.getBoundingClientRect().height -
-          right.getBoundingClientRect().width *
-            right.getBoundingClientRect().height,
-      );
-
-    return (
-      candidates.find((element) => value && sameValue(elementText(element), value)) ||
-      candidates[0] ||
-      null
+    const index = segmentNumber - 1;
+    const card = getSegmentCards()[index];
+    if (!card) throw new Error(`Could not find segment ${segmentNumber}.`);
+    card.scrollIntoView({ block: "center", behavior: "auto" });
+    card.click();
+    await waitFor(
+      () => getSegmentCards()[index]?.classList.contains("border-primary-500"),
+      `Could not activate segment ${segmentNumber}.`,
     );
   }
 
-  async function waitForFieldTrigger(label, value) {
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      const trigger = findFieldTrigger(label, value);
-      if (trigger) return trigger;
-      await pause(100);
-    }
-    throw new Error(`Could not find Refrag’s ${label} selector.`);
+  function getDropdown(label) {
+    const heading = Array.from(document.querySelectorAll("h1")).find(
+      (element) => sameValue(elementText(element), label),
+    );
+    const trigger = heading?.parentElement?.querySelector('button[aria-haspopup="true"]');
+    if (!trigger) throw new Error(`Could not find Refrag’s ${label} selector.`);
+    return trigger;
   }
 
-  async function waitForFieldValue(label, value) {
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      const trigger = findFieldTrigger(label, value);
-      if (trigger && sameValue(elementText(trigger), value)) return trigger;
-      await pause(100);
-    }
-    throw new Error(`Could not confirm Refrag’s ${label} value ${value}.`);
-  }
-
-  function dropdownOption(trigger, value) {
-    const triggerRect = trigger.getBoundingClientRect();
-    const isTrigger = (element) =>
-      element === trigger || trigger.contains(element) || element.contains(trigger);
-    const depth = (element) => {
-      let result = 0;
-      for (let node = element; node?.parentElement; node = node.parentElement) {
-        result += 1;
-      }
-      return result;
-    };
-
-    return Array.from(document.querySelectorAll("*"))
-      .filter(
-        (element) =>
-          element !== document.body &&
-          element !== document.documentElement &&
-          !isTrigger(element) &&
-          sameValue(elementText(element), value) &&
-          element.getClientRects().length,
-      )
-      .map((element) => {
-        const rect = element.getBoundingClientRect();
-        const menu = element.closest(
-          'menu,[role="option"],[role="menuitem"],[role="listbox"],[role="menu"],[data-radix-select-content],[data-radix-popper-content-wrapper]',
-        );
-        return {
-          element,
-          inMenu: Boolean(menu),
-          depth: depth(element),
-          distance:
-            Math.abs(rect.left - triggerRect.left) +
-            Math.abs(rect.top - triggerRect.top),
-        };
-      })
-      .sort((left, right) => {
-        return (
-          Number(right.inMenu) - Number(left.inMenu) ||
-          left.distance - right.distance ||
-          right.depth - left.depth
-        );
-      })[0]?.element;
-  }
-
-  async function chooseDropdownValue(trigger, value, label) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      trigger.click();
-      for (let waitAttempt = 0; waitAttempt < 10; waitAttempt += 1) {
-        await pause(80);
-        const option = dropdownOption(trigger, value);
-        if (!option) continue;
-        option.click();
-        await pause(100);
-        return;
-      }
-      trigger.click();
-      await pause(80);
-    }
-    throw new Error(`Could not select ${label} ${value}.`);
-  }
-
-  async function availableDropdownValues(trigger, values) {
+  async function chooseDropdownValue(label, value) {
+    let trigger = getDropdown(label);
+    if (sameValue(elementText(trigger), value)) return;
     trigger.click();
-    await pause(80);
-    const available = values.filter((value) => dropdownOption(trigger, value));
+    const menu = await waitFor(
+      () => Array.from(document.querySelectorAll('[role="menu"]')).find(visible),
+      `Could not open Refrag’s ${label} menu.`,
+    );
+    const option = Array.from(menu.querySelectorAll('[role="menuitem"],[role="option"],button'))
+      .find((element) => visible(element) && sameValue(elementText(element), value));
+    if (!option) throw new Error(`Could not select ${label} ${value}.`);
+    option.click();
+    await waitFor(() => {
+      trigger = getDropdown(label);
+      return trigger.getAttribute("aria-expanded") !== "true" && sameValue(elementText(trigger), value);
+    }, `Could not confirm ${label} ${value}.`);
+  }
+
+  async function availableDropdownValues(label, values) {
+    const trigger = getDropdown(label);
     trigger.click();
-    await pause(80);
+    const menu = await waitFor(
+      () => Array.from(document.querySelectorAll('[role="menu"]')).find(visible),
+      `Could not open Refrag’s ${label} menu.`,
+    );
+    const available = values.filter((value) =>
+      Array.from(menu.querySelectorAll('[role="menuitem"],[role="option"],button'))
+        .some((element) => visible(element) && sameValue(elementText(element), value)),
+    );
+    trigger.click();
     return available;
   }
 
@@ -310,14 +202,11 @@
 
     try {
       const segments = cards.map((card) => {
-        const parts = card.innerText
-          .replace(/\s+/g, " ")
-          .split("•")
-          .map((part) => part.trim());
-        const map = parts[0]?.replace(/^Segment \d+\s*/, "").trim();
-        const mod = parts[1];
+        const values = Array.from(card.querySelectorAll("h2")).map(elementText);
+        const map = values[1];
+        const mod = values[2];
         if (!map || !mod) throw new Error("Could not read a routine segment.");
-        const number = Number(card.innerText.match(/^Segment (\d+)/)?.[1]);
+        const number = Number(values[0]?.match(/^Segment (\d+)/)?.[1]);
         if (!number) throw new Error("Could not read a routine segment number.");
         return { number, map, mod };
       });
@@ -338,14 +227,9 @@
       const allowedMods = [];
       for (const [index, segment] of segments.entries()) {
         await selectSegment(segment.number);
-        const mapTrigger = await waitForFieldTrigger("Map", segment.map);
-        await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
+        await chooseDropdownValue("Map", targetMaps[index]);
         await selectSegment(segment.number);
-        const modTrigger = await waitForFieldTrigger("Mod");
-        allowedMods[index] = await availableDropdownValues(
-          modTrigger,
-          distinctMods,
-        );
+        allowedMods[index] = await availableDropdownValues("Mod", distinctMods);
       }
 
       const compatibleMods = assignCompatibleMods(
@@ -362,11 +246,9 @@
 
       for (const [index, segment] of segments.entries()) {
         await selectSegment(segment.number);
-        const mapTrigger = await waitForFieldTrigger("Map");
-        await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
+        await chooseDropdownValue("Map", targetMaps[index]);
         await selectSegment(segment.number);
-        const modTrigger = await waitForFieldTrigger("Mod");
-        await chooseDropdownValue(modTrigger, compatibleMods[index], "mod");
+        await chooseDropdownValue("Mod", compatibleMods[index]);
 
         const save = saveButton();
         if (!save) throw new Error("Could not find Refrag’s Save button.");
