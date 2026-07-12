@@ -26,6 +26,13 @@
       .trim();
   }
 
+  // Routine cards render some names differently from the selector (for example
+  // "AngleTrainer" on a card and "Angle Trainer" in the menu).
+  function sameValue(left, right) {
+    return String(left).replace(/\s+/g, "").toLowerCase() ===
+      String(right).replace(/\s+/g, "").toLowerCase();
+  }
+
   function actionElement(label) {
     return Array.from(document.querySelectorAll("*")).find(
       (element) =>
@@ -124,7 +131,7 @@
       );
 
     return (
-      candidates.find((element) => elementText(element) === value) ||
+      candidates.find((element) => value && sameValue(elementText(element), value)) ||
       candidates[0] ||
       null
     );
@@ -142,7 +149,7 @@
   async function waitForFieldValue(label, value) {
     for (let attempt = 0; attempt < 30; attempt += 1) {
       const trigger = findFieldTrigger(label, value);
-      if (trigger && elementText(trigger) === value) return trigger;
+      if (trigger && sameValue(elementText(trigger), value)) return trigger;
       await pause(100);
     }
     throw new Error(`Could not confirm Refrag’s ${label} value ${value}.`);
@@ -166,7 +173,7 @@
           element !== document.body &&
           element !== document.documentElement &&
           !isTrigger(element) &&
-          elementText(element) === value &&
+          sameValue(elementText(element), value) &&
           element.getClientRects().length,
       )
       .map((element) => {
@@ -251,7 +258,7 @@
     return actionElement("Save");
   }
 
-  function assignCompatibleMods(allowedMods, mods) {
+  function assignCompatibleMods(allowedMods, mods, currentMods) {
     const remaining = new Map();
     for (const mod of mods) remaining.set(mod, (remaining.get(mod) || 0) + 1);
     const assignment = Array(allowedMods.length);
@@ -259,22 +266,36 @@
       .map((options, index) => ({ index, options }))
       .sort((left, right) => left.options.length - right.options.length);
 
-    function visit(position) {
-      if (position === order.length) return true;
+    let bestAssignment = null;
+    let mostChanged = -1;
+
+    function visit(position, changed) {
+      if (changed + order.length - position <= mostChanged) return;
+      if (position === order.length) {
+        if (changed > mostChanged) {
+          mostChanged = changed;
+          bestAssignment = [...assignment];
+        }
+        return;
+      }
       const { index, options } = order[position];
       const candidates = options
         .filter((mod) => remaining.get(mod) > 0)
-        .sort(() => crypto.getRandomValues(new Uint32Array(1))[0] - 2 ** 31);
+        .sort((left, right) => {
+          const leftUnchanged = sameValue(left, currentMods[index]);
+          const rightUnchanged = sameValue(right, currentMods[index]);
+          return Number(leftUnchanged) - Number(rightUnchanged);
+        });
       for (const mod of candidates) {
         remaining.set(mod, remaining.get(mod) - 1);
         assignment[index] = mod;
-        if (visit(position + 1)) return true;
+        visit(position + 1, changed + Number(!sameValue(mod, currentMods[index])));
         remaining.set(mod, remaining.get(mod) + 1);
       }
-      return false;
     }
 
-    return visit(0) ? assignment : null;
+    visit(0, 0);
+    return bestAssignment;
   }
 
   async function shuffleRoutine(button) {
@@ -328,7 +349,11 @@
         );
       }
 
-      const compatibleMods = assignCompatibleMods(allowedMods, targetMods);
+      const compatibleMods = assignCompatibleMods(
+        allowedMods,
+        targetMods,
+        segments.map((segment) => segment.mod),
+      );
       if (!compatibleMods) {
         location.reload();
         throw new Error(
@@ -344,6 +369,7 @@
         await waitForFieldValue("Map", targetMaps[index]);
         const modTrigger = await waitForFieldTrigger("Mod");
         await chooseDropdownValue(modTrigger, compatibleMods[index], "mod");
+        await waitForFieldValue("Mod", compatibleMods[index]);
 
         const save = saveButton();
         if (!save) throw new Error("Could not find Refrag’s Save button.");
