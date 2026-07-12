@@ -136,10 +136,18 @@
       .filter(
         ({ rect }) =>
           rect.width > 100 &&
-          rect.left >= triggerRect.left - 4 &&
-          rect.top >= triggerRect.bottom - 2,
+          rect.right >= triggerRect.left - 4 &&
+          rect.left <= triggerRect.right + 4,
       )
-      .sort((left, right) => right.rect.top - left.rect.top)[0]?.element;
+      .sort((left, right) => {
+        const leftDistance =
+          Math.abs(left.rect.left - triggerRect.left) +
+          Math.abs(left.rect.top - triggerRect.top);
+        const rightDistance =
+          Math.abs(right.rect.left - triggerRect.left) +
+          Math.abs(right.rect.top - triggerRect.top);
+        return leftDistance - rightDistance;
+      })[0]?.element;
   }
 
   async function chooseDropdownValue(trigger, value, label) {
