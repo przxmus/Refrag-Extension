@@ -51,7 +51,15 @@
       let candidate = heading.parentElement;
       while (candidate && candidate !== document.body) {
         const text = candidate.innerText?.replace(/\s+/g, " ").trim() || "";
-        if (/^Segment \d+ .* • .* • \d+ minutes?$/.test(text)) break;
+        const segmentCount = (text.match(/\bSegment\s+\d+\b/g) || []).length;
+        if (
+          /^Segment\s+\d+\b/.test(text) &&
+          text.includes("•") &&
+          /\b\d+\s*(?:minute|minutes|min|mins)\b/.test(text) &&
+          segmentCount === 1
+        ) {
+          break;
+        }
         candidate = candidate.parentElement;
       }
       if (candidate && candidate !== document.body && !seen.has(candidate)) {
