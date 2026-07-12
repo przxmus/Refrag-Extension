@@ -8,6 +8,12 @@
     "default_title": "Refrag+",
     "default_popup": "popup.html"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["shuffle-worker.js"],
+      "matches": ["https://play.refrag.gg/*"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": ["https://play.refrag.gg/routines*"],

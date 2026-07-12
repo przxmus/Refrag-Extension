@@ -11,6 +11,33 @@ const pause = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 let running = false;
 
+async function generateShuffleAsync(
+  segments: Segment[],
+  config: ShuffleConfig,
+): Promise<Segment[]> {
+  const workerUrl = chrome.runtime?.getURL("shuffle-worker.js");
+  if (!workerUrl) {
+    await pause(0);
+    return generateShuffle(segments, config);
+  }
+  return new Promise<Segment[]>((resolve, reject) => {
+    const worker = new Worker(workerUrl);
+    const finish = () => worker.terminate();
+    worker.addEventListener("message", (event: MessageEvent) => {
+      finish();
+      const response = event.data as { error?: string; result?: Segment[] };
+      if (response.error) reject(new Error(response.error));
+      else if (response.result) resolve(response.result);
+      else reject(new Error("Shuffle worker returned an invalid response."));
+    });
+    worker.addEventListener("error", () => {
+      finish();
+      reject(new Error("Could not start the shuffle worker."));
+    });
+    worker.postMessage({ config, segments });
+  });
+}
+
 const text = (element: Element | null | undefined): string =>
   (element?.textContent ?? "").replace(/\s+/g, " ").trim();
 const same = (a: string, b: string): boolean => normalize(a) === normalize(b);
@@ -332,7 +359,7 @@ async function shuffle(button: HTMLElement): Promise<void> {
   try {
     const original = cards().map(readCard);
     const config = await loadConfig();
-    const result = generateShuffle(original, config);
+    const result = await generateShuffleAsync(original, config);
     if (config.runtime.logPlan)
       console.table(
         result.map((target, i) => ({
@@ -411,7 +438,7 @@ declare global {
 }
 window.RefragRoutineShuffler = {
   async preview() {
-    return generateShuffle(cards().map(readCard), await loadConfig());
+    return generateShuffleAsync(cards().map(readCard), await loadConfig());
   },
   async shuffle() {
     const button = document.getElementById(BUTTON_ID);

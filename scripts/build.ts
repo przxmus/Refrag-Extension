@@ -12,6 +12,7 @@ await build({
   entryPoints: {
     content: join(root, "src/content/index.ts"),
     "routine-links": join(root, "src/content/routine-links.ts"),
+    "shuffle-worker": join(root, "src/shuffle/worker.ts"),
     popup: join(root, "src/popup/index.ts"),
   },
   outdir: dist,
