@@ -139,6 +139,15 @@
     throw new Error(`Could not find Refrag’s ${label} selector.`);
   }
 
+  async function waitForFieldValue(label, value) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const trigger = findFieldTrigger(label, value);
+      if (trigger && elementText(trigger) === value) return trigger;
+      await pause(100);
+    }
+    throw new Error(`Could not confirm Refrag’s ${label} value ${value}.`);
+  }
+
   function dropdownOption(trigger, value) {
     const triggerRect = trigger.getBoundingClientRect();
     const isTrigger = (element) =>
@@ -310,6 +319,8 @@
         await selectSegment(segment.number);
         const mapTrigger = await waitForFieldTrigger("Map", segment.map);
         await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
+        await selectSegment(segment.number);
+        await waitForFieldValue("Map", targetMaps[index]);
         const modTrigger = await waitForFieldTrigger("Mod");
         allowedMods[index] = await availableDropdownValues(
           modTrigger,
@@ -329,6 +340,8 @@
         await selectSegment(segment.number);
         const mapTrigger = await waitForFieldTrigger("Map");
         await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
+        await selectSegment(segment.number);
+        await waitForFieldValue("Map", targetMaps[index]);
         const modTrigger = await waitForFieldTrigger("Mod");
         await chooseDropdownValue(modTrigger, compatibleMods[index], "mod");
 
