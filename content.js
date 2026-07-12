@@ -4,10 +4,17 @@
   const BUTTON_ID = "refrag-routine-shuffler";
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  function buttonText(button) {
-    return (button.innerText || button.textContent || "")
+  function elementText(element) {
+    return (element.innerText || element.textContent || "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function actionElement(label) {
+    return Array.from(document.querySelectorAll("*")).find(
+      (element) =>
+        element.children.length === 0 && elementText(element) === label,
+    );
   }
 
   function directText(element) {
@@ -104,9 +111,7 @@
   }
 
   function saveButton() {
-    return Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent.trim() === "Save",
-    );
+    return actionElement("Save");
   }
 
   async function shuffleRoutine(button) {
@@ -159,12 +164,8 @@
 
   function mountButton() {
     if (document.getElementById(BUTTON_ID)) return;
-    const deleteButton = Array.from(document.querySelectorAll("button")).find(
-      (button) => buttonText(button) === "Delete",
-    );
-    const publishButton = Array.from(document.querySelectorAll("button")).find(
-      (button) => buttonText(button) === "Review & Publish",
-    );
+    const deleteButton = actionElement("Delete");
+    const publishButton = actionElement("Review & Publish");
     if (!deleteButton || !publishButton) return;
 
     const button = publishButton.cloneNode(false);
