@@ -181,25 +181,43 @@ function menuFor(trigger: HTMLElement): HTMLElement | undefined {
   );
 }
 
-async function choose(label: string, value: string): Promise<void> {
-  let trigger = dropdown(label);
-  if (same(text(trigger), value)) return;
-  trigger.click();
-  const menu = await waitFor(
-    () => menuFor(dropdown(label)),
-    `Could not open Refrag's ${label} menu.`,
-  );
+function optionFor(
+  trigger: HTMLElement,
+  value: string,
+): HTMLElement | undefined {
+  const menu = menuFor(trigger);
+  if (!menu) return undefined;
   const candidates = [
     ...menu.querySelectorAll<HTMLElement>(
       '[role="menuitem"], [role="option"], button, [data-headlessui-value]',
     ),
   ];
-  const option =
+  return (
     candidates.find((node) => same(text(node), value)) ??
     [...menu.querySelectorAll<HTMLElement>("*")].find(
       (node) => !node.children.length && same(text(node), value),
-    );
-  if (!option) throw new Error(`Could not select ${label} “${value}”.`);
+    )
+  );
+}
+
+async function choose(label: string, value: string): Promise<void> {
+  let trigger = dropdown(label);
+  if (same(text(trigger), value)) return;
+  trigger.click();
+  let lastOpenAttempt = performance.now();
+  const option = await waitFor(() => {
+    trigger = dropdown(label);
+    const match = optionFor(trigger, value);
+    if (match) return match;
+    if (
+      trigger.getAttribute("aria-expanded") !== "true" &&
+      performance.now() - lastOpenAttempt > 250
+    ) {
+      trigger.click();
+      lastOpenAttempt = performance.now();
+    }
+    return undefined;
+  }, `Could not select ${label} “${value}” after waiting for Refrag to update its options.`);
   option.scrollIntoView({ block: "nearest" });
   option.click();
   await waitFor(() => {
