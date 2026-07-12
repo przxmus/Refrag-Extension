@@ -124,39 +124,77 @@
 
   function dropdownOption(trigger, value) {
     const triggerRect = trigger.getBoundingClientRect();
+    const isTrigger = (element) =>
+      element === trigger || trigger.contains(element) || element.contains(trigger);
+    const gap = (startA, endA, startB, endB) =>
+      Math.max(startA - endB, startB - endA, 0);
+    const depth = (element) => {
+      let result = 0;
+      for (let node = element; node?.parentElement; node = node.parentElement) {
+        result += 1;
+      }
+      return result;
+    };
+
     return Array.from(document.querySelectorAll("*"))
       .filter(
         (element) =>
           element !== document.body &&
           element !== document.documentElement &&
+          !isTrigger(element) &&
           elementText(element) === value &&
           element.getClientRects().length,
       )
-      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const menu = element.closest(
+          '[role="option"],[role="menuitem"],[role="listbox"],[role="menu"],[data-radix-select-content],[data-radix-popper-content-wrapper]',
+        );
+        return {
+          element,
+          rect,
+          inMenu: Boolean(menu),
+          depth: depth(element),
+          distance:
+            gap(rect.left, rect.right, triggerRect.left, triggerRect.right) +
+            gap(rect.top, rect.bottom, triggerRect.top, triggerRect.bottom),
+          visible:
+            rect.width > 0 &&
+            rect.height > 0 &&
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            style.pointerEvents !== "none" &&
+            Number(style.opacity) !== 0,
+        };
+      })
       .filter(
-        ({ rect }) =>
-          rect.width > 100 &&
-          rect.right >= triggerRect.left - 4 &&
-          rect.left <= triggerRect.right + 4,
+        ({ visible, distance }) => visible && distance <= 500,
       )
       .sort((left, right) => {
-        const leftDistance =
-          Math.abs(left.rect.left - triggerRect.left) +
-          Math.abs(left.rect.top - triggerRect.top);
-        const rightDistance =
-          Math.abs(right.rect.left - triggerRect.left) +
-          Math.abs(right.rect.top - triggerRect.top);
-        return leftDistance - rightDistance;
+        return (
+          Number(right.inMenu) - Number(left.inMenu) ||
+          left.distance - right.distance ||
+          right.depth - left.depth
+        );
       })[0]?.element;
   }
 
   async function chooseDropdownValue(trigger, value, label) {
-    trigger.click();
-    await pause(80);
-    const option = dropdownOption(trigger, value);
-    if (!option) throw new Error(`Could not select ${label} ${value}.`);
-    option.click();
-    await pause(80);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      trigger.click();
+      for (let waitAttempt = 0; waitAttempt < 10; waitAttempt += 1) {
+        await pause(80);
+        const option = dropdownOption(trigger, value);
+        if (!option) continue;
+        option.click();
+        await pause(100);
+        return;
+      }
+      trigger.click();
+      await pause(80);
+    }
+    throw new Error(`Could not select ${label} ${value}.`);
   }
 
   async function availableDropdownValues(trigger, values) {
