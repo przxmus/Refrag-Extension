@@ -166,7 +166,10 @@ export function validateAssignment(
       normalize(assigned.mod) === normalize(before.mod)
     )
       throw new Error(`Mod did not change at segment ${before.number}.`);
-    if (withinGap(maps, assigned.map, config.maps.minimumRepeatGap))
+    if (
+      !config.maps.groupTogether &&
+      withinGap(maps, assigned.map, config.maps.minimumRepeatGap)
+    )
       throw new Error(`Map gap failed at segment ${before.number}.`);
     if (withinGap(mods, assigned.mod, config.mods.minimumRepeatGap))
       throw new Error(`Mod gap failed at segment ${before.number}.`);
@@ -177,6 +180,18 @@ export function validateAssignment(
     mods.push(assigned.mod);
     pairs.push(key);
   });
+  if (config.maps.groupTogether) {
+    const completed = new Set<string>();
+    let current = "";
+    for (const assigned of result) {
+      const map = normalize(assigned.map);
+      if (map === current) continue;
+      if (completed.has(map))
+        throw new Error(`Map grouping failed at segment ${assigned.number}.`);
+      if (current) completed.add(current);
+      current = map;
+    }
+  }
 }
 
 export function generateShuffle(
@@ -189,7 +204,13 @@ export function generateShuffle(
     throw new Error("At least two segments are required to shuffle a routine.");
   const maps = pool(segments.map((x) => x.map));
   const mods = pool(segments.map((x) => x.mod));
-  assertGapCapacity(maps, config.maps.minimumRepeatGap, segments.length, "Map");
+  if (!config.maps.groupTogether)
+    assertGapCapacity(
+      maps,
+      config.maps.minimumRepeatGap,
+      segments.length,
+      "Map",
+    );
   assertGapCapacity(mods, config.mods.minimumRepeatGap, segments.length, "Mod");
   const originalPairs = new Set(segments.map((x) => pairKey(x.map, x.mod)));
   let best: Segment[] | undefined;
@@ -212,6 +233,12 @@ export function generateShuffle(
         .flatMap((map) => mods.map((mod) => ({ map, mod })))
         .filter(({ map, mod }) => {
           if (!map.count || !mod.count) return false;
+          if (config.maps.groupTogether && result.length) {
+            const current = maps.find(
+              (item) => item.key === normalize(result.at(-1)!.map),
+            );
+            if (current?.count && map.key !== current.key) return false;
+          }
           const key = pairKey(map.value, mod.value);
           if (
             config.combinations.preventAnyOriginalCombination &&
@@ -236,6 +263,7 @@ export function generateShuffle(
           )
             return false;
           if (
+            !config.maps.groupTogether &&
             withinGap(
               result.map((x) => x.map),
               map.value,

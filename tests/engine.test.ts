@@ -29,6 +29,27 @@ describe("generateShuffle", () => {
     expect(DEFAULT_CONFIG.runtime.durationAssignment).toBe("position");
   });
 
+  test("keeps map grouping disabled by default", () => {
+    expect(DEFAULT_CONFIG.maps.groupTogether).toBeFalse();
+  });
+
+  test("groups each map into one continuous block when configured", () => {
+    const config = cloneConfig(DEFAULT_CONFIG);
+    config.maps.groupTogether = true;
+    config.combinations.preventAnyOriginalCombination = false;
+    config.combinations.preventDuplicatesInResult = false;
+    config.combinations.requireDifferentAtSamePosition = false;
+    config.mods.minimumRepeatGap = 0;
+    const result = generateShuffle(segments, config, deterministic);
+    const mapRuns = result.reduce<string[]>((runs, segment) => {
+      const map = normalize(segment.map);
+      if (runs.at(-1) !== map) runs.push(map);
+      return runs;
+    }, []);
+    expect(new Set(mapRuns).size).toBe(mapRuns.length);
+    expect(() => validateAssignment(segments, result, config)).not.toThrow();
+  });
+
   test("moves duration with its mod when configured", () => {
     const config = cloneConfig(DEFAULT_CONFIG);
     config.runtime.durationAssignment = "mod";

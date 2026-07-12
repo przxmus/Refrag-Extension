@@ -7,7 +7,7 @@ export interface ShuffleConfig {
     preferNewCombinations: boolean;
     preferUniqueCombinations: boolean;
   };
-  maps: RepeatConfig;
+  maps: MapConfig;
   mods: RepeatConfig;
   runtime: {
     durationAssignment: DurationAssignment;
@@ -28,9 +28,13 @@ interface RepeatConfig {
   preferDifferentAtSamePosition: boolean;
 }
 
+interface MapConfig extends RepeatConfig {
+  groupTogether: boolean;
+}
+
 export type ConfigPath =
   | `combinations.${keyof ShuffleConfig["combinations"]}`
-  | `maps.${keyof RepeatConfig}`
+  | `maps.${keyof MapConfig}`
   | `mods.${keyof RepeatConfig}`
   | `runtime.${keyof ShuffleConfig["runtime"]}`;
 
@@ -57,6 +61,7 @@ export const DEFAULT_CONFIG: ShuffleConfig = {
     preferUniqueCombinations: true,
   },
   maps: {
+    groupTogether: false,
     minimumRepeatGap: 1,
     requireDifferentAtSamePosition: false,
     preferDifferentAtSamePosition: true,
@@ -134,6 +139,14 @@ export const CONFIG_SCHEMA: ConfigField[] = [
     type: "boolean",
     label: "Prefer unique combinations",
     description: "Minimize duplicate pairs when they are allowed.",
+  },
+  {
+    path: "maps.groupTogether",
+    group: "Maps",
+    type: "boolean",
+    label: "Group segments by map",
+    description:
+      "Place each map in one continuous block to reduce loading screens. Overrides the minimum map gap.",
   },
   {
     path: "maps.minimumRepeatGap",
