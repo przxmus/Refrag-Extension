@@ -3,12 +3,14 @@ import type { Segment } from "../shared/types";
 import { generateShuffle, normalize } from "../shuffle/engine";
 import { findPublishConfirmation, findReviewAction } from "./actions";
 import { acquireInteractionLock } from "./interaction-lock";
+import { isRoutineListPath, routineViewUrl } from "./routine-navigation";
 
 const BUTTON_ID = "refrag-routine-shuffler";
 const WAIT_TIMEOUT = 20_000;
 const pause = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 let running = false;
+let openingRoutine = false;
 
 const text = (element: Element | null | undefined): string =>
   (element?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -302,11 +304,91 @@ function mount(): void {
   reviewAction.insertAdjacentElement("beforebegin", button);
 }
 
-new MutationObserver(mount).observe(document.documentElement, {
+function routineCardFor(title: HTMLElement): HTMLElement | undefined {
+  let node = title.parentElement;
+  while (node && node !== document.body) {
+    const labels = [...node.querySelectorAll("h1")].map(text);
+    if (
+      labels.some((label) => same(label, "Author")) &&
+      labels.some((label) => same(label, "Status")) &&
+      labels.some((label) => same(label, "Length"))
+    )
+      return node;
+    node = node.parentElement;
+  }
+  return undefined;
+}
+
+async function openRoutine(card: HTMLElement): Promise<void> {
+  if (openingRoutine) return;
+  const title = [...card.querySelectorAll<HTMLElement>("h1")].find((node) => {
+    const value = text(node);
+    return (
+      value &&
+      !["Author", "Status", "Length"].some((label) => same(value, label))
+    );
+  });
+  const header = title?.parentElement?.parentElement;
+  const editAction = header?.querySelector<HTMLElement>(".cursor-pointer");
+  if (!editAction) return;
+
+  openingRoutine = true;
+  const previousUrl = location.href;
+  try {
+    editAction.click();
+    const destination = await waitFor(
+      () =>
+        location.href !== previousUrl
+          ? routineViewUrl(location.href)
+          : undefined,
+      "Could not open the routine.",
+      5_000,
+    );
+    location.assign(destination);
+  } catch (error) {
+    openingRoutine = false;
+    console.error("[Refrag+]", error);
+  }
+}
+
+function mountRoutineLinks(): void {
+  if (!isRoutineListPath(location.pathname)) return;
+  for (const title of document.querySelectorAll<HTMLElement>("h1")) {
+    const card = routineCardFor(title);
+    if (!card || card.dataset.refragRoutineLink === "true") continue;
+    card.dataset.refragRoutineLink = "true";
+    card.style.cursor = "pointer";
+    card.setAttribute("role", "link");
+    card.tabIndex = 0;
+
+    const activate = (target: EventTarget | null): void => {
+      const element = target instanceof Element ? target : null;
+      const action = element?.closest(
+        "a, button, [role='button'], .cursor-pointer",
+      );
+      if (action && action !== card) return;
+      void openRoutine(card);
+    };
+    card.addEventListener("click", (event) => activate(event.target));
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.target !== card) return;
+      event.preventDefault();
+      activate(event.target);
+    });
+  }
+}
+
+function mountAll(): void {
+  mount();
+  mountRoutineLinks();
+}
+
+new MutationObserver(mountAll).observe(document.documentElement, {
   childList: true,
   subtree: true,
 });
-mount();
+mountAll();
 
 declare global {
   interface Window {
