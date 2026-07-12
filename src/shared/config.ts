@@ -292,8 +292,11 @@ export function setConfigValue(
 }
 
 export async function loadConfig(): Promise<ShuffleConfig> {
-  const stored = (await chrome.storage.sync.get(STORAGE_KEY))[STORAGE_KEY] as
-    Partial<ShuffleConfig> | undefined;
+  const syncStorage = globalThis.chrome?.storage?.sync;
+  const stored = syncStorage
+    ? (((await syncStorage.get(STORAGE_KEY))[STORAGE_KEY] as
+        Partial<ShuffleConfig> | undefined) ?? undefined)
+    : undefined;
   const config = cloneConfig(DEFAULT_CONFIG);
   if (stored) {
     for (const group of Object.keys(config) as (keyof ShuffleConfig)[])
@@ -305,5 +308,8 @@ export async function loadConfig(): Promise<ShuffleConfig> {
 
 export async function saveConfig(config: ShuffleConfig): Promise<void> {
   validateConfig(config);
-  await chrome.storage.sync.set({ [STORAGE_KEY]: config });
+  const syncStorage = globalThis.chrome?.storage?.sync;
+  if (!syncStorage)
+    throw new Error("Extension storage is unavailable. Reload the extension.");
+  await syncStorage.set({ [STORAGE_KEY]: config });
 }

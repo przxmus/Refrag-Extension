@@ -3,6 +3,7 @@ import type { Segment } from "../shared/types";
 import { generateShuffle, normalize } from "../shuffle/engine";
 import { findPublishConfirmation, findReviewAction } from "./actions";
 import { acquireInteractionLock } from "./interaction-lock";
+import { durationInMinutes } from "./duration";
 
 const BUTTON_ID = "refrag-plus-shuffle";
 const WAIT_TIMEOUT = 20_000;
@@ -125,7 +126,7 @@ async function selectSegment(number: number): Promise<void> {
 const DROPDOWN_TRIGGER =
   'button[aria-haspopup="true"], button[role="combobox"], [role="combobox"]';
 
-function dropdown(label: string): HTMLElement {
+function findDropdown(label: string): HTMLElement | undefined {
   const root = editor();
   const labelledTrigger = [
     ...root.querySelectorAll<HTMLElement>(DROPDOWN_TRIGGER),
@@ -155,6 +156,11 @@ function dropdown(label: string): HTMLElement {
     }
     if (trigger) break;
   }
+  return trigger;
+}
+
+function dropdown(label: string): HTMLElement {
+  const trigger = findDropdown(label);
   if (!trigger) throw new Error(`Could not find Refrag's ${label} selector.`);
   return trigger;
 }
@@ -212,6 +218,46 @@ async function choose(label: string, value: string): Promise<void> {
   }
 }
 
+function inputFor(label: string): HTMLInputElement | undefined {
+  const heading = [
+    ...editor().querySelectorAll<HTMLElement>("h1, h2, h3, label"),
+  ].find((node) => same(text(node), label));
+  let container = heading?.parentElement;
+  while (container && editor().contains(container)) {
+    const inputs = [
+      ...container.querySelectorAll<HTMLInputElement>("input"),
+    ].filter(visible);
+    if (inputs.length === 1) return inputs[0];
+    if (container === editor()) break;
+    container = container.parentElement;
+  }
+  return undefined;
+}
+
+async function chooseDuration(value: string): Promise<void> {
+  if (findDropdown("Duration")) {
+    await choose("Duration", value);
+    return;
+  }
+
+  const input = inputFor("Estimated Duration");
+  if (!input)
+    throw new Error("Could not find Refrag's Estimated Duration input.");
+  const minutes = durationInMinutes(value);
+  if (Number(input.value) === minutes) return;
+  const valueSetter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )?.set;
+  valueSetter?.call(input, String(minutes));
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+  await waitFor(
+    () => Number(inputFor("Estimated Duration")?.value) === minutes,
+    `Could not confirm duration “${value}”.`,
+  );
+}
+
 async function save(segment: Segment): Promise<void> {
   if (editorNumber() !== segment.number)
     throw new Error(`Refusing to save the wrong segment.`);
@@ -250,7 +296,7 @@ async function publishRoutine(): Promise<void> {
   );
   const confirmation = await waitFor(
     () => findPublishConfirmation((label) => leafAction(label, dialog)),
-    "Could not find Publish or Update Routine in Refrag's dialog.",
+    "Could not find Refrag's publish confirmation control.",
   );
   confirmation.click();
   await waitFor(
@@ -291,7 +337,7 @@ async function shuffle(button: HTMLElement): Promise<void> {
       await selectSegment(target.number);
       await choose("Map", target.map);
       await choose("Mod", target.mod);
-      await choose("Duration", target.duration);
+      await chooseDuration(target.duration);
       await save(target);
     }
     if (config.runtime.autoPublish) {

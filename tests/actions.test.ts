@@ -23,11 +23,14 @@ describe("findReviewAction", () => {
 });
 
 describe("findPublishConfirmation", () => {
-  test.each(["Publish", "Update Routine"])("supports %s", (expected) => {
-    expect(
-      findPublishConfirmation((label) =>
-        label === expected ? label : undefined,
-      ),
-    ).toBe(expected);
-  });
+  test.each(["Publish", "Publish Routine", "Update Routine"])(
+    "supports %s",
+    (expected) => {
+      expect(
+        findPublishConfirmation((label) =>
+          label === expected ? label : undefined,
+        ),
+      ).toBe(expected);
+    },
+  );
 });

@@ -5,6 +5,7 @@ export const REVIEW_ACTION_LABELS = [
 
 export const PUBLISH_CONFIRMATION_LABELS = [
   "Publish",
+  "Publish Routine",
   "Update Routine",
 ] as const;
 
