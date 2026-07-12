@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Refrag Routine Shuffler",
-  "description": "Shuffles maps across routine segments while preserving every map, mod, and duration count.",
-  "version": "0.1.0",
+  "description": "Shuffles routine maps and mods using configurable constraints.",
+  "version": "1.0.0",
+  "permissions": ["storage"],
+  "action": {
+    "default_title": "Refrag Routine Shuffler",
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
       "matches": ["https://play.refrag.gg/routines/*/edit"],
