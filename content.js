@@ -4,6 +4,12 @@
   const BUTTON_ID = "refrag-routine-shuffler";
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  function buttonText(button) {
+    return (button.innerText || button.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function directText(element) {
     return Array.from(element.childNodes)
       .filter((node) => node.nodeType === Node.TEXT_NODE)
@@ -154,17 +160,12 @@
   function mountButton() {
     if (document.getElementById(BUTTON_ID)) return;
     const deleteButton = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent.trim() === "Delete",
+      (button) => buttonText(button) === "Delete",
     );
     const publishButton = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent.trim() === "Review & Publish",
+      (button) => buttonText(button) === "Review & Publish",
     );
-    if (
-      !deleteButton ||
-      !publishButton ||
-      deleteButton.parentElement !== publishButton.parentElement
-    )
-      return;
+    if (!deleteButton || !publishButton) return;
 
     const button = publishButton.cloneNode(false);
     button.id = BUTTON_ID;
@@ -178,7 +179,7 @@
         button.textContent = "Try again";
       });
     });
-    deleteButton.insertAdjacentElement("afterend", button);
+    publishButton.insertAdjacentElement("beforebegin", button);
   }
 
   const observer = new MutationObserver(mountButton);
