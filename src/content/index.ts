@@ -50,7 +50,9 @@ function leafAction(
 
   return [...root.querySelectorAll<HTMLElement>("div")].find(
     (element) =>
-      !element.children.length && same(text(element), label) && visible(element),
+      !element.children.length &&
+      same(text(element), label) &&
+      visible(element),
   );
 }
 
@@ -197,7 +199,11 @@ async function save(segment: Segment): Promise<void> {
     const card = cardFor(segment.number);
     if (!card) return false;
     const state = readCard(card);
-    return same(state.map, segment.map) && same(state.mod, segment.mod);
+    return (
+      same(state.map, segment.map) &&
+      same(state.mod, segment.mod) &&
+      same(state.duration, segment.duration)
+    );
   }, `Segment ${segment.number} was not saved.`);
   await pause(900);
 }
@@ -240,7 +246,7 @@ async function shuffle(button: HTMLElement): Promise<void> {
         result.map((target, i) => ({
           segment: target.number,
           from: `${original[i]!.map} / ${original[i]!.mod}`,
-          to: `${target.map} / ${target.mod}`,
+          to: `${target.map} / ${target.mod} / ${target.duration}`,
         })),
       );
     for (let i = 0; i < result.length; i++) {
@@ -250,12 +256,14 @@ async function shuffle(button: HTMLElement): Promise<void> {
       if (
         config.runtime.saveOnlyChangedSegments &&
         same(before.map, target.map) &&
-        same(before.mod, target.mod)
+        same(before.mod, target.mod) &&
+        same(before.duration, target.duration)
       )
         continue;
       await selectSegment(target.number);
       await choose("Map", target.map);
       await choose("Mod", target.mod);
+      await choose("Duration", target.duration);
       await save(target);
     }
     if (config.runtime.autoPublish) {

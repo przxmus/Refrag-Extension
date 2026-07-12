@@ -17,6 +17,25 @@ export const normalize = (value: string): string =>
 const pairKey = (map: string, mod: string): string =>
   `${normalize(map)}::${normalize(mod)}`;
 
+function assignDurations(
+  original: Segment[],
+  result: Segment[],
+  assignment: ShuffleConfig["runtime"]["durationAssignment"],
+): void {
+  if (assignment === "position") return;
+  const durations = new Map<string, string[]>();
+  for (const segment of original) {
+    const key = normalize(segment[assignment]);
+    durations.set(key, [...(durations.get(key) ?? []), segment.duration]);
+  }
+  for (const segment of result) {
+    const available = durations.get(normalize(segment[assignment]));
+    if (!available?.length)
+      throw new Error(`Could not assign a duration by ${assignment}.`);
+    segment.duration = available.shift()!;
+  }
+}
+
 function pool(values: string[]): PoolItem[] {
   const items = new Map<string, PoolItem>();
   for (const value of values) {
@@ -275,6 +294,7 @@ export function generateShuffle(
       return false;
     };
     if (!search(0)) continue;
+    assignDurations(segments, result, config.runtime.durationAssignment);
     validateAssignment(segments, result, config);
     valid++;
     const pairCounts = result.reduce<Map<string, number>>(

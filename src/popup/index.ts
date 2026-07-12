@@ -31,13 +31,27 @@ function render(): void {
       label.textContent = field.label;
       const description = document.createElement("p");
       description.textContent = field.description;
-      const input = document.createElement("input");
+      const input: HTMLInputElement | HTMLSelectElement =
+        field.type === "select"
+          ? document.createElement("select")
+          : document.createElement("input");
       input.id = id;
       input.dataset.path = field.path;
-      if (field.type === "boolean") {
+      if (field.type === "select") {
+        for (const item of field.options ?? []) {
+          const option = document.createElement("option");
+          option.value = item.value;
+          option.textContent = item.label;
+          input.append(option);
+        }
+        input.value = String(getConfigValue(config, field.path));
+      } else if (
+        field.type === "boolean" &&
+        input instanceof HTMLInputElement
+      ) {
         input.type = "checkbox";
         input.checked = Boolean(getConfigValue(config, field.path));
-      } else {
+      } else if (input instanceof HTMLInputElement) {
         input.type = "number";
         input.min = String(field.min);
         input.max = String(field.max);
@@ -48,7 +62,11 @@ function render(): void {
         setConfigValue(
           config,
           field.path,
-          input.type === "checkbox" ? input.checked : Number(input.value),
+          input instanceof HTMLInputElement && input.type === "checkbox"
+            ? input.checked
+            : field.type === "integer"
+              ? Number(input.value)
+              : input.value,
         );
         status.textContent = "Unsaved changes";
       });

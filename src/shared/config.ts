@@ -10,6 +10,7 @@ export interface ShuffleConfig {
   maps: RepeatConfig;
   mods: RepeatConfig;
   runtime: {
+    durationAssignment: DurationAssignment;
     saveOnlyChangedSegments: boolean;
     autoPublish: boolean;
     generationAttempts: number;
@@ -18,6 +19,8 @@ export interface ShuffleConfig {
     logPlan: boolean;
   };
 }
+
+export type DurationAssignment = "position" | "map" | "mod";
 
 interface RepeatConfig {
   minimumRepeatGap: number;
@@ -34,11 +37,12 @@ export type ConfigPath =
 export interface ConfigField {
   path: ConfigPath;
   group: "Combinations" | "Maps" | "Mods" | "Advanced";
-  type: "boolean" | "integer";
+  type: "boolean" | "integer" | "select";
   label: string;
   description: string;
   min?: number;
   max?: number;
+  options?: { value: string; label: string }[];
 }
 
 export const STORAGE_KEY = "shuffleConfig";
@@ -63,6 +67,7 @@ export const DEFAULT_CONFIG: ShuffleConfig = {
     preferDifferentAtSamePosition: true,
   },
   runtime: {
+    durationAssignment: "position",
     saveOnlyChangedSegments: true,
     autoPublish: false,
     generationAttempts: 200,
@@ -73,6 +78,19 @@ export const DEFAULT_CONFIG: ShuffleConfig = {
 };
 
 export const CONFIG_SCHEMA: ConfigField[] = [
+  {
+    path: "runtime.durationAssignment",
+    group: "Advanced",
+    type: "select",
+    label: "Keep duration with",
+    description:
+      "Keep each duration at its position, or move it with the assigned map or mod.",
+    options: [
+      { value: "position", label: "Segment position" },
+      { value: "map", label: "Map" },
+      { value: "mod", label: "Mod" },
+    ],
+  },
   {
     path: "combinations.preventDuplicatesInResult",
     group: "Combinations",
@@ -223,6 +241,11 @@ export function validateConfig(config: ShuffleConfig): void {
     if (field.type === "boolean" && typeof value !== "boolean")
       throw new Error(`${field.path} must be true or false.`);
     if (
+      field.type === "select" &&
+      !field.options?.some((option) => option.value === value)
+    )
+      throw new Error(`${field.path} has an invalid value.`);
+    if (
       field.type === "integer" &&
       (!Number.isInteger(value) ||
         Number(value) < field.min! ||
@@ -238,18 +261,21 @@ export function validateConfig(config: ShuffleConfig): void {
 export function getConfigValue(
   config: ShuffleConfig,
   path: ConfigPath,
-): boolean | number {
+): boolean | number | string {
   const [group, key] = path.split(".") as [keyof ShuffleConfig, string];
-  return (config[group] as unknown as Record<string, boolean | number>)[key]!;
+  return (
+    config[group] as unknown as Record<string, boolean | number | string>
+  )[key]!;
 }
 
 export function setConfigValue(
   config: ShuffleConfig,
   path: ConfigPath,
-  value: boolean | number,
+  value: boolean | number | string,
 ): void {
   const [group, key] = path.split(".") as [keyof ShuffleConfig, string];
-  (config[group] as unknown as Record<string, boolean | number>)[key] = value;
+  (config[group] as unknown as Record<string, boolean | number | string>)[key] =
+    value;
 }
 
 export async function loadConfig(): Promise<ShuffleConfig> {

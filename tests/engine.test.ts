@@ -25,6 +25,26 @@ describe("generateShuffle", () => {
     expect(DEFAULT_CONFIG.runtime.autoPublish).toBeFalse();
   });
 
+  test("keeps duration assigned to segment position by default", () => {
+    expect(DEFAULT_CONFIG.runtime.durationAssignment).toBe("position");
+  });
+
+  test("moves duration with its mod when configured", () => {
+    const config = cloneConfig(DEFAULT_CONFIG);
+    config.runtime.durationAssignment = "mod";
+    const result = generateShuffle(segments, config, deterministic);
+    const durationsByMod = (items: Segment[]) =>
+      items.reduce<Record<string, string[]>>((all, segment) => {
+        (all[normalize(segment.mod)] ??= []).push(segment.duration);
+        return all;
+      }, {});
+    const before = durationsByMod(segments);
+    const after = durationsByMod(result);
+    for (const durations of Object.values(before)) durations.sort();
+    for (const durations of Object.values(after)) durations.sort();
+    expect(after).toEqual(before);
+  });
+
   test("preserves map, mod, segment and duration data", () => {
     const result = generateShuffle(
       segments,
