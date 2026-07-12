@@ -55,29 +55,40 @@ async function openRoutine(card: HTMLElement): Promise<void> {
   let destination: string | undefined;
   const originalPushState = history.pushState.bind(history);
   const originalReplaceState = history.replaceState.bind(history);
-  const capture = (url: string | URL | null | undefined): boolean => {
-    if (url === undefined || url === null) return false;
-    destination = routineViewUrl(
-      new URL(String(url), location.href).toString(),
-    );
-    return Boolean(destination);
+  const resolveRoutine = (
+    url: string | URL | null | undefined,
+  ): string | undefined => {
+    if (url === undefined || url === null) return undefined;
+    return routineViewUrl(new URL(String(url), location.href).toString());
   };
   const interceptPushState: History["pushState"] = (data, unused, url) => {
-    if (!capture(url)) originalPushState(data, unused, url);
+    const routineUrl = resolveRoutine(url);
+    if (!routineUrl) {
+      originalPushState(data, unused, url);
+      return;
+    }
+    destination = routineUrl;
+    originalPushState(data, unused, routineUrl);
   };
   const interceptReplaceState: History["replaceState"] = (
     data,
     unused,
     url,
   ) => {
-    if (!capture(url)) originalReplaceState(data, unused, url);
+    const routineUrl = resolveRoutine(url);
+    if (!routineUrl) {
+      originalReplaceState(data, unused, url);
+      return;
+    }
+    destination = routineUrl;
+    originalPushState(data, unused, routineUrl);
   };
   history.pushState = interceptPushState;
   history.replaceState = interceptReplaceState;
 
   try {
     editAction.click();
-    location.assign(await waitForDestination(() => destination));
+    location.replace(await waitForDestination(() => destination));
   } catch (error) {
     openingRoutine = false;
     console.error("[Refrag+]", error);
