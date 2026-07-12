@@ -24,7 +24,9 @@ async function waitForDestination(
 function routineCardFor(title: HTMLElement): HTMLElement | undefined {
   let node = title.parentElement;
   while (node && node !== document.body) {
-    const labels = [...node.querySelectorAll("h1")].map(text);
+    const labels = [
+      ...node.querySelectorAll("h1, h2, h3, [role='heading']"),
+    ].map(text);
     if (
       labels.some((label) => same(label, "Author")) &&
       labels.some((label) => same(label, "Status")) &&
@@ -38,7 +40,9 @@ function routineCardFor(title: HTMLElement): HTMLElement | undefined {
 
 async function openRoutine(card: HTMLElement): Promise<void> {
   if (openingRoutine) return;
-  const title = [...card.querySelectorAll<HTMLElement>("h1")].find((node) => {
+  const title = [
+    ...card.querySelectorAll<HTMLElement>("h1, h2, h3, [role='heading']"),
+  ].find((node) => {
     const value = text(node);
     return (
       value &&
@@ -102,7 +106,9 @@ async function openRoutine(card: HTMLElement): Promise<void> {
 
 function mountRoutineLinks(): void {
   if (!isRoutineListPath(location.pathname)) return;
-  for (const title of document.querySelectorAll<HTMLElement>("h1")) {
+  for (const title of document.querySelectorAll<HTMLElement>(
+    "h1, h2, h3, [role='heading']",
+  )) {
     const card = routineCardFor(title);
     if (!card || card.dataset.refragRoutineLink === "true") continue;
     card.dataset.refragRoutineLink = "true";
