@@ -6,6 +6,216 @@
   const WAIT_TIMEOUT = 20_000;
   const SAVE_SETTLE_MS = 900;
 
+  const DEFAULT_SHUFFLE_CONFIG = {
+    combinations: {
+      // true = żadna para mapa + mod nie może wystąpić dwa razy
+      // w wyniku jednego tasowania.
+      preventDuplicatesInResult: true,
+
+      // true = żadna para mapa + mod, która istniała przed tasowaniem,
+      // nie może pojawić się nigdzie w nowym układzie.
+      preventAnyOriginalCombination: true,
+
+      // 0 = brak ograniczenia odległości.
+      // 1 = taka sama kombinacja nie może wystąpić obok siebie.
+      // 2 = pomiędzy powtórzeniami musi być co najmniej 2 segmenty itd.
+      // Ma znaczenie głównie, gdy preventDuplicatesInResult = false.
+      minimumRepeatGap: 0,
+
+      // Wymaga zmiany pary w każdym konkretnym segmencie.
+      // Jest automatycznie spełnione, gdy preventAnyOriginalCombination = true.
+      requireDifferentAtSamePosition: true,
+
+      // Miękka preferencja używana, gdy twardy zakaz powyżej jest wyłączony.
+      preferNewCombinations: true,
+
+      // Gdy twardy zakaz duplikatów jest wyłączony, nadal próbuj
+      // ograniczać liczbę powtarzających się par.
+      preferUniqueCombinations: true,
+    },
+
+    maps: {
+      // 1 = nie pozwalaj na tę samą mapę w sąsiednich segmentach.
+      minimumRepeatGap: 1,
+
+      // true = mapa w każdym segmencie musi być inna niż przed tasowaniem.
+      requireDifferentAtSamePosition: false,
+
+      // Miękka preferencja: próbuj zmienić mapę na każdej pozycji.
+      preferDifferentAtSamePosition: true,
+    },
+
+    mods: {
+      // 1 = nie pozwalaj na ten sam mod w sąsiednich segmentach.
+      minimumRepeatGap: 1,
+
+      // true = mod w każdym segmencie musi być inny niż przed tasowaniem.
+      requireDifferentAtSamePosition: false,
+
+      // Miękka preferencja: próbuj zmienić mod na każdej pozycji.
+      preferDifferentAtSamePosition: true,
+    },
+
+    runtime: {
+      // Nie klikaj Save dla segmentu, którego para finalnie się nie zmieniła.
+      saveOnlyChangedSegments: true,
+
+      // Więcej prób pomaga przy bardzo restrykcyjnych ustawieniach,
+      // ale może wydłużyć generowanie.
+      generationAttempts: 200,
+
+      // Ile poprawnych planów maksymalnie porównać pod kątem miękkich
+      // preferencji. Generator kończy wcześniej, gdy znajdzie wynik idealny.
+      validPlansToCompare: 20,
+
+      maxSearchNodesPerAttempt: 50_000,
+
+      // Szczegółowy plan i ustawienia w konsoli DevTools.
+      logPlan: true,
+    },
+  };
+
+  // Edytuj DEFAULT_SHUFFLE_CONFIG, aby zmienić ustawienia startowe.
+  // SHUFFLE_CONFIG jest mutowalną kopią przygotowaną pod przyszłe UI.
+  const SHUFFLE_CONFIG = JSON.parse(JSON.stringify(DEFAULT_SHUFFLE_CONFIG));
+
+  // Metadane pod przyszłe UI. Na ich podstawie można automatycznie
+  // zbudować checkboxy i pola liczbowe bez duplikowania opisów opcji.
+  const SHUFFLE_CONFIG_SCHEMA = [
+    {
+      path: "combinations.preventDuplicatesInResult",
+      group: "Kombinacje",
+      type: "boolean",
+      label: "Bez duplikatów kombinacji",
+      description: "Każda para mapa + mod może wystąpić najwyżej raz.",
+    },
+    {
+      path: "combinations.preventAnyOriginalCombination",
+      group: "Kombinacje",
+      type: "boolean",
+      label: "Nie używaj starych kombinacji",
+      description: "Blokuje każdą parę, która istniała przed tasowaniem.",
+    },
+    {
+      path: "combinations.minimumRepeatGap",
+      group: "Kombinacje",
+      type: "integer",
+      min: 0,
+      max: 12,
+      label: "Minimalny odstęp kombinacji",
+      description: "0 wyłącza regułę; 1 blokuje powtórkę obok siebie.",
+    },
+    {
+      path: "combinations.requireDifferentAtSamePosition",
+      group: "Kombinacje",
+      type: "boolean",
+      label: "Zmień kombinację na każdej pozycji",
+      description: "Segment nie może zachować swojej wcześniejszej pary.",
+    },
+    {
+      path: "combinations.preferNewCombinations",
+      group: "Kombinacje",
+      type: "boolean",
+      label: "Preferuj nowe kombinacje",
+      description:
+        "Miękka preferencja używana, gdy twardy zakaz jest wyłączony.",
+    },
+    {
+      path: "combinations.preferUniqueCombinations",
+      group: "Kombinacje",
+      type: "boolean",
+      label: "Preferuj unikalne kombinacje",
+      description: "Miękka preferencja używana, gdy duplikaty są dozwolone.",
+    },
+    {
+      path: "maps.minimumRepeatGap",
+      group: "Mapy",
+      type: "integer",
+      min: 0,
+      max: 12,
+      label: "Minimalny odstęp map",
+      description: "1 blokuje tę samą mapę w sąsiednich segmentach.",
+    },
+    {
+      path: "maps.requireDifferentAtSamePosition",
+      group: "Mapy",
+      type: "boolean",
+      label: "Zmień mapę na każdej pozycji",
+      description: "Twardy wymóg zmiany mapy w każdym segmencie.",
+    },
+    {
+      path: "maps.preferDifferentAtSamePosition",
+      group: "Mapy",
+      type: "boolean",
+      label: "Preferuj zmianę mapy",
+      description: "Generator próbuje zmienić mapę, ale może ją zostawić.",
+    },
+    {
+      path: "mods.minimumRepeatGap",
+      group: "Tryby",
+      type: "integer",
+      min: 0,
+      max: 12,
+      label: "Minimalny odstęp trybów",
+      description: "1 blokuje ten sam tryb w sąsiednich segmentach.",
+    },
+    {
+      path: "mods.requireDifferentAtSamePosition",
+      group: "Tryby",
+      type: "boolean",
+      label: "Zmień tryb na każdej pozycji",
+      description: "Twardy wymóg zmiany trybu w każdym segmencie.",
+    },
+    {
+      path: "mods.preferDifferentAtSamePosition",
+      group: "Tryby",
+      type: "boolean",
+      label: "Preferuj zmianę trybu",
+      description: "Generator próbuje zmienić tryb, ale może go zostawić.",
+    },
+    {
+      path: "runtime.saveOnlyChangedSegments",
+      group: "Zaawansowane",
+      type: "boolean",
+      label: "Zapisuj tylko zmienione segmenty",
+      description: "Pomija Save, gdy mapa i tryb pozostały bez zmian.",
+    },
+    {
+      path: "runtime.generationAttempts",
+      group: "Zaawansowane",
+      type: "integer",
+      min: 1,
+      max: 2000,
+      label: "Liczba prób generowania",
+      description: "Więcej prób pomaga przy restrykcyjnych regułach.",
+    },
+    {
+      path: "runtime.validPlansToCompare",
+      group: "Zaawansowane",
+      type: "integer",
+      min: 1,
+      max: 100,
+      label: "Liczba planów do porównania",
+      description: "Większa wartość lepiej optymalizuje miękkie preferencje.",
+    },
+    {
+      path: "runtime.maxSearchNodesPerAttempt",
+      group: "Zaawansowane",
+      type: "integer",
+      min: 100,
+      max: 1000000,
+      label: "Limit wyszukiwania",
+      description: "Limit pracy generatora podczas pojedynczej próby.",
+    },
+    {
+      path: "runtime.logPlan",
+      group: "Zaawansowane",
+      type: "boolean",
+      label: "Loguj plan w konsoli",
+      description: "Pokazuje ustawienia oraz wynik w DevTools.",
+    },
+  ];
+
   let routineRunning = false;
 
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -517,38 +727,806 @@
     return crypto.getRandomValues(new Uint32Array(1))[0] % maxExclusive;
   }
 
-  function shuffledCopy(items) {
-    const result = [...items];
-
-    for (let index = result.length - 1; index > 0; index -= 1) {
-      const swapIndex = randomUint(index + 1);
-
-      [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
-    }
-
-    return result;
+  function randomUnit() {
+    return randomUint(1_000_000) / 1_000_000;
   }
 
-  function hasAdjacentRepeats(values) {
-    return values.some(
-      (value, index) => index > 0 && sameValue(value, values[index - 1]),
+  function combinationKey(map, mod) {
+    return `${normalizeValue(map)}::${normalizeValue(mod)}`;
+  }
+
+  function buildValuePool(values) {
+    const pool = new Map();
+
+    for (const value of values) {
+      const key = normalizeValue(value);
+      const existing = pool.get(key);
+
+      if (existing) {
+        existing.count += 1;
+      } else {
+        pool.set(key, {
+          key,
+          value,
+          count: 1,
+        });
+      }
+    }
+
+    return Array.from(pool.values());
+  }
+
+  function countValues(values) {
+    const counts = new Map();
+
+    for (const value of values) {
+      const key = normalizeValue(value);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    return counts;
+  }
+
+  function sameCounts(leftValues, rightValues) {
+    const left = countValues(leftValues);
+    const right = countValues(rightValues);
+
+    if (left.size !== right.size) {
+      return false;
+    }
+
+    return Array.from(left).every(([key, count]) => right.get(key) === count);
+  }
+
+  function nonNegativeInteger(value, optionName) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`${optionName} must be a non-negative integer.`);
+    }
+  }
+
+  function positiveInteger(value, optionName) {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new Error(`${optionName} must be a positive integer.`);
+    }
+  }
+
+  function validateShuffleConfig() {
+    const booleanOptions = [
+      [
+        SHUFFLE_CONFIG.combinations.preventDuplicatesInResult,
+        "combinations.preventDuplicatesInResult",
+      ],
+      [
+        SHUFFLE_CONFIG.combinations.preventAnyOriginalCombination,
+        "combinations.preventAnyOriginalCombination",
+      ],
+      [
+        SHUFFLE_CONFIG.combinations.requireDifferentAtSamePosition,
+        "combinations.requireDifferentAtSamePosition",
+      ],
+      [
+        SHUFFLE_CONFIG.combinations.preferNewCombinations,
+        "combinations.preferNewCombinations",
+      ],
+      [
+        SHUFFLE_CONFIG.combinations.preferUniqueCombinations,
+        "combinations.preferUniqueCombinations",
+      ],
+      [
+        SHUFFLE_CONFIG.maps.requireDifferentAtSamePosition,
+        "maps.requireDifferentAtSamePosition",
+      ],
+      [
+        SHUFFLE_CONFIG.maps.preferDifferentAtSamePosition,
+        "maps.preferDifferentAtSamePosition",
+      ],
+      [
+        SHUFFLE_CONFIG.mods.requireDifferentAtSamePosition,
+        "mods.requireDifferentAtSamePosition",
+      ],
+      [
+        SHUFFLE_CONFIG.mods.preferDifferentAtSamePosition,
+        "mods.preferDifferentAtSamePosition",
+      ],
+      [
+        SHUFFLE_CONFIG.runtime.saveOnlyChangedSegments,
+        "runtime.saveOnlyChangedSegments",
+      ],
+      [SHUFFLE_CONFIG.runtime.logPlan, "runtime.logPlan"],
+    ];
+
+    for (const [value, optionName] of booleanOptions) {
+      if (typeof value !== "boolean") {
+        throw new Error(`${optionName} must be true or false.`);
+      }
+    }
+
+    nonNegativeInteger(
+      SHUFFLE_CONFIG.combinations.minimumRepeatGap,
+      "combinations.minimumRepeatGap",
+    );
+    nonNegativeInteger(
+      SHUFFLE_CONFIG.maps.minimumRepeatGap,
+      "maps.minimumRepeatGap",
+    );
+    nonNegativeInteger(
+      SHUFFLE_CONFIG.mods.minimumRepeatGap,
+      "mods.minimumRepeatGap",
+    );
+    positiveInteger(
+      SHUFFLE_CONFIG.runtime.generationAttempts,
+      "runtime.generationAttempts",
+    );
+    positiveInteger(
+      SHUFFLE_CONFIG.runtime.validPlansToCompare,
+      "runtime.validPlansToCompare",
+    );
+    positiveInteger(
+      SHUFFLE_CONFIG.runtime.maxSearchNodesPerAttempt,
+      "runtime.maxSearchNodesPerAttempt",
     );
   }
 
+  function appearsWithinGap(values, value, gap) {
+    if (gap <= 0) {
+      return false;
+    }
+
+    const start = Math.max(0, values.length - gap);
+
+    return values.slice(start).some((existing) => sameValue(existing, value));
+  }
+
+  function combinationAppearsWithinGap(maps, mods, nextMap, nextMod, gap) {
+    if (gap <= 0) {
+      return false;
+    }
+
+    const nextKey = combinationKey(nextMap, nextMod);
+    const start = Math.max(0, mods.length - gap);
+
+    for (let index = start; index < mods.length; index += 1) {
+      if (combinationKey(maps[index], mods[index]) === nextKey) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function pairAllowedByGlobalRules(map, mod, originalPairKeys) {
+    return !(
+      SHUFFLE_CONFIG.combinations.preventAnyOriginalCombination &&
+      originalPairKeys.has(combinationKey(map, mod))
+    );
+  }
+
+  function assertGapCapacity(pool, gap, segmentCount, label) {
+    if (gap <= 0) {
+      return;
+    }
+
+    const maximumOccurrences = Math.floor((segmentCount + gap) / (gap + 1));
+    const impossible = pool.find((item) => item.count > maximumOccurrences);
+
+    if (impossible) {
+      throw new Error(
+        `${label} ${impossible.value} occurs ${impossible.count} times, ` +
+          `so minimumRepeatGap=${gap} is impossible for ` +
+          `${segmentCount} segments.`,
+      );
+    }
+  }
+
+  function assertBasicShuffleFeasibility(
+    segments,
+    mapPool,
+    modPool,
+    originalPairKeys,
+  ) {
+    assertGapCapacity(
+      mapPool,
+      SHUFFLE_CONFIG.maps.minimumRepeatGap,
+      segments.length,
+      "Map",
+    );
+    assertGapCapacity(
+      modPool,
+      SHUFFLE_CONFIG.mods.minimumRepeatGap,
+      segments.length,
+      "Mod",
+    );
+
+    const globallyAllowedPairs = [];
+
+    for (const mapItem of mapPool) {
+      for (const modItem of modPool) {
+        if (
+          pairAllowedByGlobalRules(
+            mapItem.value,
+            modItem.value,
+            originalPairKeys,
+          )
+        ) {
+          globallyAllowedPairs.push({
+            mapKey: mapItem.key,
+            modKey: modItem.key,
+          });
+        }
+      }
+    }
+
+    if (!globallyAllowedPairs.length) {
+      throw new Error(
+        "The current settings forbid every possible map/mod combination.",
+      );
+    }
+
+    for (const mapItem of mapPool) {
+      const allowedMods = new Set(
+        globallyAllowedPairs
+          .filter((pair) => pair.mapKey === mapItem.key)
+          .map((pair) => pair.modKey),
+      );
+
+      if (!allowedMods.size) {
+        throw new Error(
+          `Map ${mapItem.value} has no allowed mods with the current settings.`,
+        );
+      }
+
+      if (
+        SHUFFLE_CONFIG.combinations.preventDuplicatesInResult &&
+        mapItem.count > allowedMods.size
+      ) {
+        throw new Error(
+          `Map ${mapItem.value} occurs ${mapItem.count} times, but only ` +
+            `${allowedMods.size} distinct non-forbidden mods are available. ` +
+            `Disable combinations.preventDuplicatesInResult or ` +
+            `combinations.preventAnyOriginalCombination.`,
+        );
+      }
+    }
+
+    for (const modItem of modPool) {
+      const allowedMaps = new Set(
+        globallyAllowedPairs
+          .filter((pair) => pair.modKey === modItem.key)
+          .map((pair) => pair.mapKey),
+      );
+
+      if (!allowedMaps.size) {
+        throw new Error(
+          `Mod ${modItem.value} has no allowed maps with the current settings.`,
+        );
+      }
+
+      if (
+        SHUFFLE_CONFIG.combinations.preventDuplicatesInResult &&
+        modItem.count > allowedMaps.size
+      ) {
+        throw new Error(
+          `Mod ${modItem.value} occurs ${modItem.count} times, but only ` +
+            `${allowedMaps.size} distinct non-forbidden maps are available. ` +
+            `Disable combinations.preventDuplicatesInResult or ` +
+            `combinations.preventAnyOriginalCombination.`,
+        );
+      }
+    }
+
+    if (
+      SHUFFLE_CONFIG.combinations.preventDuplicatesInResult &&
+      globallyAllowedPairs.length < segments.length
+    ) {
+      throw new Error(
+        `Only ${globallyAllowedPairs.length} distinct combinations are ` +
+          `allowed for ${segments.length} segments.`,
+      );
+    }
+  }
+
+  function buildMapSequence(segments, searchBudget) {
+    const mapPool = buildValuePool(segments.map((segment) => segment.map));
+    const maps = [];
+
+    const search = (position) => {
+      searchBudget.nodes += 1;
+
+      if (
+        searchBudget.nodes > SHUFFLE_CONFIG.runtime.maxSearchNodesPerAttempt
+      ) {
+        return false;
+      }
+
+      if (position >= segments.length) {
+        return [...maps];
+      }
+
+      const choices = mapPool
+        .filter(
+          (item) =>
+            item.count > 0 &&
+            !appearsWithinGap(
+              maps,
+              item.value,
+              SHUFFLE_CONFIG.maps.minimumRepeatGap,
+            ) &&
+            !(
+              SHUFFLE_CONFIG.maps.requireDifferentAtSamePosition &&
+              sameValue(item.value, segments[position].map)
+            ),
+        )
+        .map((item) => ({
+          item,
+          penalty:
+            (SHUFFLE_CONFIG.maps.preferDifferentAtSamePosition &&
+            sameValue(item.value, segments[position].map)
+              ? 10
+              : 0) + randomUnit(),
+        }))
+        .sort((left, right) => left.penalty - right.penalty);
+
+      for (const choice of choices) {
+        choice.item.count -= 1;
+        maps.push(choice.item.value);
+
+        const result = search(position + 1);
+
+        if (result) {
+          return result;
+        }
+
+        maps.pop();
+        choice.item.count += 1;
+      }
+
+      return false;
+    };
+
+    return search(0);
+  }
+
+  function modAllowedAtPosition({
+    position,
+    mod,
+    segments,
+    maps,
+    mods,
+    originalPairKeys,
+    usedPairKeys,
+    ignoreSequenceGaps = false,
+  }) {
+    const map = maps[position];
+    const original = segments[position];
+    const pairKey = combinationKey(map, mod);
+
+    if (!pairAllowedByGlobalRules(map, mod, originalPairKeys)) {
+      return false;
+    }
+
+    if (
+      SHUFFLE_CONFIG.combinations.preventDuplicatesInResult &&
+      usedPairKeys.has(pairKey)
+    ) {
+      return false;
+    }
+
+    if (
+      SHUFFLE_CONFIG.combinations.requireDifferentAtSamePosition &&
+      sameValue(map, original.map) &&
+      sameValue(mod, original.mod)
+    ) {
+      return false;
+    }
+
+    if (
+      SHUFFLE_CONFIG.mods.requireDifferentAtSamePosition &&
+      sameValue(mod, original.mod)
+    ) {
+      return false;
+    }
+
+    if (!ignoreSequenceGaps) {
+      if (appearsWithinGap(mods, mod, SHUFFLE_CONFIG.mods.minimumRepeatGap)) {
+        return false;
+      }
+
+      if (
+        combinationAppearsWithinGap(
+          maps,
+          mods,
+          map,
+          mod,
+          SHUFFLE_CONFIG.combinations.minimumRepeatGap,
+        )
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  function remainingModsLookPossible({
+    nextPosition,
+    segments,
+    maps,
+    mods,
+    modPool,
+    originalPairKeys,
+    usedPairKeys,
+  }) {
+    if (nextPosition >= segments.length) {
+      return true;
+    }
+
+    // Każda kopia danego moda potrzebuje dostępnej pozycji. Przy zakazie
+    // duplikatów liczymy odrębne pary mapa + mod, a nie same pozycje.
+    for (const modItem of modPool) {
+      if (modItem.count <= 0) continue;
+
+      const available = new Set();
+
+      for (
+        let position = nextPosition;
+        position < segments.length;
+        position += 1
+      ) {
+        if (
+          modAllowedAtPosition({
+            position,
+            mod: modItem.value,
+            segments,
+            maps,
+            mods,
+            originalPairKeys,
+            usedPairKeys,
+            ignoreSequenceGaps: true,
+          })
+        ) {
+          available.add(
+            SHUFFLE_CONFIG.combinations.preventDuplicatesInResult
+              ? combinationKey(maps[position], modItem.value)
+              : `position:${position}`,
+          );
+        }
+      }
+
+      if (available.size < modItem.count) {
+        return false;
+      }
+    }
+
+    // Każda przyszła pozycja musi mieć przynajmniej jeden możliwy mod.
+    for (
+      let position = nextPosition;
+      position < segments.length;
+      position += 1
+    ) {
+      const hasChoice = modPool.some(
+        (modItem) =>
+          modItem.count > 0 &&
+          modAllowedAtPosition({
+            position,
+            mod: modItem.value,
+            segments,
+            maps,
+            mods,
+            originalPairKeys,
+            usedPairKeys,
+            ignoreSequenceGaps: true,
+          }),
+      );
+
+      if (!hasChoice) {
+        return false;
+      }
+    }
+
+    // Najbliższa pozycja musi być możliwa także z aktywnymi gapami.
+    return modPool.some(
+      (modItem) =>
+        modItem.count > 0 &&
+        modAllowedAtPosition({
+          position: nextPosition,
+          mod: modItem.value,
+          segments,
+          maps,
+          mods,
+          originalPairKeys,
+          usedPairKeys,
+        }),
+    );
+  }
+
+  function buildModSequence(segments, maps, originalPairKeys, searchBudget) {
+    const modPool = buildValuePool(segments.map((segment) => segment.mod));
+    const mods = [];
+    const usedPairKeys = new Set();
+
+    const search = (position) => {
+      searchBudget.nodes += 1;
+
+      if (
+        searchBudget.nodes > SHUFFLE_CONFIG.runtime.maxSearchNodesPerAttempt
+      ) {
+        return false;
+      }
+
+      if (position >= segments.length) {
+        return [...mods];
+      }
+
+      const choices = modPool
+        .filter(
+          (item) =>
+            item.count > 0 &&
+            modAllowedAtPosition({
+              position,
+              mod: item.value,
+              segments,
+              maps,
+              mods,
+              originalPairKeys,
+              usedPairKeys,
+            }),
+        )
+        .map((item) => {
+          const pairKey = combinationKey(maps[position], item.value);
+          let penalty = randomUnit();
+
+          if (
+            SHUFFLE_CONFIG.mods.preferDifferentAtSamePosition &&
+            sameValue(item.value, segments[position].mod)
+          ) {
+            penalty += 10;
+          }
+
+          if (
+            SHUFFLE_CONFIG.combinations.preferNewCombinations &&
+            originalPairKeys.has(pairKey)
+          ) {
+            penalty += 100;
+          }
+
+          return {
+            item,
+            pairKey,
+            penalty,
+          };
+        })
+        .sort((left, right) => left.penalty - right.penalty);
+
+      for (const choice of choices) {
+        choice.item.count -= 1;
+        mods.push(choice.item.value);
+        usedPairKeys.add(choice.pairKey);
+
+        const possible = remainingModsLookPossible({
+          nextPosition: position + 1,
+          segments,
+          maps,
+          mods,
+          modPool,
+          originalPairKeys,
+          usedPairKeys,
+        });
+        const result = possible ? search(position + 1) : false;
+
+        if (result) {
+          return result;
+        }
+
+        usedPairKeys.delete(choice.pairKey);
+        mods.pop();
+        choice.item.count += 1;
+      }
+
+      return false;
+    };
+
+    return search(0);
+  }
+
+  function assignmentPenalty(segments, assignments, originalPairKeys) {
+    let penalty = 0;
+    const pairCounts = new Map();
+
+    for (let index = 0; index < assignments.length; index += 1) {
+      const original = segments[index];
+      const assigned = assignments[index];
+      const pairKey = combinationKey(assigned.map, assigned.mod);
+
+      if (
+        SHUFFLE_CONFIG.maps.preferDifferentAtSamePosition &&
+        sameValue(original.map, assigned.map)
+      ) {
+        penalty += 10;
+      }
+
+      if (
+        SHUFFLE_CONFIG.mods.preferDifferentAtSamePosition &&
+        sameValue(original.mod, assigned.mod)
+      ) {
+        penalty += 10;
+      }
+
+      if (
+        SHUFFLE_CONFIG.combinations.preferNewCombinations &&
+        originalPairKeys.has(pairKey)
+      ) {
+        penalty += 100;
+      }
+
+      pairCounts.set(pairKey, (pairCounts.get(pairKey) || 0) + 1);
+    }
+
+    if (
+      !SHUFFLE_CONFIG.combinations.preventDuplicatesInResult &&
+      SHUFFLE_CONFIG.combinations.preferUniqueCombinations
+    ) {
+      for (const count of pairCounts.values()) {
+        penalty += Math.max(0, count - 1) * 50;
+      }
+    }
+
+    return penalty;
+  }
+
+  function validateAssignment(segments, assignments, originalPairKeys) {
+    if (assignments.length !== segments.length) {
+      throw new Error("Generated assignment has an invalid length.");
+    }
+
+    if (
+      !sameCounts(
+        segments.map((segment) => segment.map),
+        assignments.map((segment) => segment.map),
+      )
+    ) {
+      throw new Error("Generated assignment changed the map pool.");
+    }
+
+    if (
+      !sameCounts(
+        segments.map((segment) => segment.mod),
+        assignments.map((segment) => segment.mod),
+      )
+    ) {
+      throw new Error("Generated assignment changed the mod pool.");
+    }
+
+    const seenPairs = new Set();
+    const maps = [];
+    const mods = [];
+
+    for (let position = 0; position < assignments.length; position += 1) {
+      const original = segments[position];
+      const assigned = assignments[position];
+      const pairKey = combinationKey(assigned.map, assigned.mod);
+
+      if (
+        SHUFFLE_CONFIG.combinations.preventAnyOriginalCombination &&
+        originalPairKeys.has(pairKey)
+      ) {
+        throw new Error(
+          `Original combination returned at segment ${original.number}.`,
+        );
+      }
+
+      if (
+        SHUFFLE_CONFIG.combinations.preventDuplicatesInResult &&
+        seenPairs.has(pairKey)
+      ) {
+        throw new Error(
+          `Duplicate combination generated at segment ${original.number}.`,
+        );
+      }
+
+      if (
+        SHUFFLE_CONFIG.combinations.requireDifferentAtSamePosition &&
+        sameValue(original.map, assigned.map) &&
+        sameValue(original.mod, assigned.mod)
+      ) {
+        throw new Error(
+          `Combination did not change at segment ${original.number}.`,
+        );
+      }
+
+      if (
+        SHUFFLE_CONFIG.maps.requireDifferentAtSamePosition &&
+        sameValue(original.map, assigned.map)
+      ) {
+        throw new Error(`Map did not change at segment ${original.number}.`);
+      }
+
+      if (
+        SHUFFLE_CONFIG.mods.requireDifferentAtSamePosition &&
+        sameValue(original.mod, assigned.mod)
+      ) {
+        throw new Error(`Mod did not change at segment ${original.number}.`);
+      }
+
+      if (
+        appearsWithinGap(
+          maps,
+          assigned.map,
+          SHUFFLE_CONFIG.maps.minimumRepeatGap,
+        )
+      ) {
+        throw new Error(
+          `Map repeat gap was violated at segment ${original.number}.`,
+        );
+      }
+
+      if (
+        appearsWithinGap(
+          mods,
+          assigned.mod,
+          SHUFFLE_CONFIG.mods.minimumRepeatGap,
+        )
+      ) {
+        throw new Error(
+          `Mod repeat gap was violated at segment ${original.number}.`,
+        );
+      }
+
+      if (
+        combinationAppearsWithinGap(
+          maps,
+          mods,
+          assigned.map,
+          assigned.mod,
+          SHUFFLE_CONFIG.combinations.minimumRepeatGap,
+        )
+      ) {
+        throw new Error(
+          `Combination repeat gap was violated at segment ` +
+            `${original.number}.`,
+        );
+      }
+
+      seenPairs.add(pairKey);
+      maps.push(assigned.map);
+      mods.push(assigned.mod);
+    }
+  }
+
   function shuffledValidPairs(segments) {
-    const originalMaps = segments.map((segment) => segment.map);
-    const originalMods = segments.map((segment) => segment.mod);
+    validateShuffleConfig();
+
+    const originalPairKeys = new Set(
+      segments.map((segment) => combinationKey(segment.map, segment.mod)),
+    );
+    const mapPool = buildValuePool(segments.map((segment) => segment.map));
+    const modPool = buildValuePool(segments.map((segment) => segment.mod));
+
+    assertBasicShuffleFeasibility(segments, mapPool, modPool, originalPairKeys);
 
     let best = null;
-    let bestScore = Infinity;
+    let bestPenalty = Infinity;
+    let validPlans = 0;
 
-    for (let attempt = 0; attempt < 5000; attempt += 1) {
-      const maps = shuffledCopy(originalMaps);
-      const mods = shuffledCopy(originalMods);
+    for (
+      let attempt = 0;
+      attempt < SHUFFLE_CONFIG.runtime.generationAttempts;
+      attempt += 1
+    ) {
+      const searchBudget = { nodes: 0 };
+      const maps = buildMapSequence(segments, searchBudget);
 
-      // Nie pozwalamy, aby ta sama mapa albo ten sam tryb
-      // występowały w dwóch sąsiednich segmentach.
-      if (hasAdjacentRepeats(maps) || hasAdjacentRepeats(mods)) {
+      if (!maps) {
+        continue;
+      }
+
+      const mods = buildModSequence(
+        segments,
+        maps,
+        originalPairKeys,
+        searchBudget,
+      );
+
+      if (!mods) {
         continue;
       }
 
@@ -556,52 +1534,35 @@
         ...segment,
         map: maps[index],
         mod: mods[index],
-        sourceIndex: index,
       }));
 
-      const unchangedMaps = candidate.filter((item, index) =>
-        sameValue(item.map, segments[index].map),
-      ).length;
+      validateAssignment(segments, candidate, originalPairKeys);
+      validPlans += 1;
 
-      const unchangedMods = candidate.filter((item, index) =>
-        sameValue(item.mod, segments[index].mod),
-      ).length;
+      const penalty = assignmentPenalty(segments, candidate, originalPairKeys);
 
-      const unchangedPairs = candidate.filter(
-        (item, index) =>
-          sameValue(item.map, segments[index].map) &&
-          sameValue(item.mod, segments[index].mod),
-      ).length;
-
-      // Najważniejsze jest rozbicie starych kombinacji.
-      const score = unchangedPairs * 100 + unchangedMaps + unchangedMods;
-
-      if (score < bestScore) {
+      if (penalty < bestPenalty) {
         best = candidate;
-        bestScore = score;
+        bestPenalty = penalty;
       }
 
-      if (unchangedPairs === 0 && unchangedMaps === 0 && unchangedMods === 0) {
+      if (
+        penalty === 0 ||
+        validPlans >= SHUFFLE_CONFIG.runtime.validPlansToCompare
+      ) {
         break;
       }
     }
 
     if (!best) {
       throw new Error(
-        "Could not independently shuffle maps and mods " +
-          "without adjacent repeats.",
+        "Could not generate a shuffle satisfying every enabled rule. " +
+          "Relax one of the DEFAULT_SHUFFLE_CONFIG restrictions or " +
+          "increase runtime.generationAttempts / maxSearchNodesPerAttempt.",
       );
     }
 
-    const didNotChange = best.every(
-      (item, index) =>
-        sameValue(item.map, segments[index].map) &&
-        sameValue(item.mod, segments[index].mod),
-    );
-
-    if (didNotChange) {
-      throw new Error("The generated shuffle did not change the routine.");
-    }
+    validateAssignment(segments, best, originalPairKeys);
 
     return best;
   }
@@ -627,25 +1588,50 @@
       const segments = cards.map(readSegmentCard);
       const assignments = shuffledValidPairs(segments);
 
-      console.table(
-        assignments.map((target, index) => ({
-          segment: segments[index].number,
-          from: `${segments[index].map} / ` + `${segments[index].mod}`,
-          to: `${target.map} / ${target.mod}`,
-        })),
-      );
+      if (SHUFFLE_CONFIG.runtime.logPlan) {
+        console.info(
+          "[Refrag Routine Shuffler] Active config:",
+          JSON.parse(JSON.stringify(SHUFFLE_CONFIG)),
+        );
+
+        console.table(
+          assignments.map((target, index) => ({
+            segment: segments[index].number,
+            from: `${segments[index].map} / ${segments[index].mod}`,
+            to: `${target.map} / ${target.mod}`,
+            mapChanged: !sameValue(segments[index].map, target.map),
+            modChanged: !sameValue(segments[index].mod, target.mod),
+          })),
+        );
+      }
 
       for (let index = 0; index < segments.length; index += 1) {
         const segment = segments[index];
         const target = assignments[index];
+        const unchanged =
+          sameValue(segment.map, target.map) &&
+          sameValue(segment.mod, target.mod);
 
         button.textContent = `${index + 1}/${segments.length}`;
 
-        console.info(
-          `[Refrag Routine Shuffler] ` +
-            `Segment ${segment.number}: ` +
-            `${target.map} / ${target.mod}`,
-        );
+        if (unchanged && SHUFFLE_CONFIG.runtime.saveOnlyChangedSegments) {
+          if (SHUFFLE_CONFIG.runtime.logPlan) {
+            console.info(
+              `[Refrag Routine Shuffler] Segment ${segment.number}: ` +
+                "unchanged, skipping Save.",
+            );
+          }
+
+          continue;
+        }
+
+        if (SHUFFLE_CONFIG.runtime.logPlan) {
+          console.info(
+            `[Refrag Routine Shuffler] ` +
+              `Segment ${segment.number}: ` +
+              `${target.map} / ${target.mod}`,
+          );
+        }
 
         await selectSegment(segment.number);
 
@@ -688,8 +1674,7 @@
     button.setAttribute("tabindex", "0");
     button.textContent = "Shuffle";
     button.title =
-      "Shuffle existing valid map/mod pairs, " +
-      "save every changed segment, and avoid adjacent repeats";
+      "Independently shuffle maps and mods using SHUFFLE_CONFIG rules";
 
     const start = () => {
       if (routineRunning) {
@@ -716,6 +1701,122 @@
 
     publishButton.insertAdjacentElement("beforebegin", button);
   }
+
+  function cloneConfig() {
+    return JSON.parse(JSON.stringify(SHUFFLE_CONFIG));
+  }
+
+  function replaceConfig(nextConfig) {
+    for (const key of Object.keys(SHUFFLE_CONFIG)) {
+      delete SHUFFLE_CONFIG[key];
+    }
+
+    Object.assign(SHUFFLE_CONFIG, JSON.parse(JSON.stringify(nextConfig)));
+  }
+
+  function updateConfigObject(target, patch, path = "") {
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+      throw new Error("Config patch must be an object.");
+    }
+
+    for (const [key, value] of Object.entries(patch)) {
+      if (!(key in target)) {
+        throw new Error(`Unknown config option: ${path}${key}`);
+      }
+
+      const current = target[key];
+      const optionPath = `${path}${key}`;
+
+      if (current && typeof current === "object" && !Array.isArray(current)) {
+        updateConfigObject(current, value, `${optionPath}.`);
+        continue;
+      }
+
+      if (typeof value !== typeof current) {
+        throw new Error(`${optionPath} must be of type ${typeof current}.`);
+      }
+
+      target[key] = value;
+    }
+  }
+
+  function applyConfigPatch(patch) {
+    const previous = cloneConfig();
+
+    try {
+      updateConfigObject(SHUFFLE_CONFIG, patch);
+      validateShuffleConfig();
+      return cloneConfig();
+    } catch (error) {
+      replaceConfig(previous);
+      throw error;
+    }
+  }
+
+  function configPatchFromPath(path, value) {
+    if (typeof path !== "string" || !path.trim()) {
+      throw new Error("Config path must be a non-empty string.");
+    }
+
+    const parts = path.split(".");
+    let patch = value;
+
+    for (let index = parts.length - 1; index >= 0; index -= 1) {
+      patch = {
+        [parts[index]]: patch,
+      };
+    }
+
+    return patch;
+  }
+
+  // Gotowe pod przyszłe UI. Checkboxy/slidery mogą czytać config
+  // albo wywoływać setConfig({ combinations: { ... } }).
+  window.RefragRoutineShuffler = {
+    config: SHUFFLE_CONFIG,
+    schema: SHUFFLE_CONFIG_SCHEMA,
+
+    getConfig: cloneConfig,
+
+    getSchema() {
+      return JSON.parse(JSON.stringify(SHUFFLE_CONFIG_SCHEMA));
+    },
+
+    setConfig: applyConfigPatch,
+
+    setConfigValue(path, value) {
+      return applyConfigPatch(configPatchFromPath(path, value));
+    },
+
+    resetConfig() {
+      replaceConfig(DEFAULT_SHUFFLE_CONFIG);
+      validateShuffleConfig();
+      return cloneConfig();
+    },
+
+    preview() {
+      const segments = getSegmentCards().map(readSegmentCard);
+      const assignments = shuffledValidPairs(segments);
+
+      return assignments.map((target, index) => ({
+        segment: segments[index].number,
+        fromMap: segments[index].map,
+        fromMod: segments[index].mod,
+        toMap: target.map,
+        toMod: target.mod,
+      }));
+    },
+
+    shuffle() {
+      const button = document.getElementById(BUTTON_ID);
+
+      if (!button) {
+        throw new Error("The Shuffle button is not mounted yet.");
+      }
+
+      return shuffleRoutine(button);
+    },
+  };
 
   const observer = new MutationObserver(mountButton);
 
