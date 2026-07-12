@@ -181,8 +181,14 @@
         const menu = element.closest(
           'menu,[role="option"],[role="menuitem"],[role="listbox"],[role="menu"],[data-radix-select-content],[data-radix-popper-content-wrapper]',
         );
+        let option = element;
+        if (menu) {
+          while (option.parentElement && option.parentElement !== menu) {
+            option = option.parentElement;
+          }
+        }
         return {
-          element,
+          element: option,
           inMenu: Boolean(menu),
           depth: depth(element),
           distance:
