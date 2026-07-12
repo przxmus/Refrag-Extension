@@ -181,14 +181,8 @@
         const menu = element.closest(
           'menu,[role="option"],[role="menuitem"],[role="listbox"],[role="menu"],[data-radix-select-content],[data-radix-popper-content-wrapper]',
         );
-        let option = element;
-        if (menu) {
-          while (option.parentElement && option.parentElement !== menu) {
-            option = option.parentElement;
-          }
-        }
         return {
-          element: option,
+          element,
           inMenu: Boolean(menu),
           depth: depth(element),
           distance:
@@ -347,7 +341,6 @@
         const mapTrigger = await waitForFieldTrigger("Map", segment.map);
         await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
         await selectSegment(segment.number);
-        await waitForFieldValue("Map", targetMaps[index]);
         const modTrigger = await waitForFieldTrigger("Mod");
         allowedMods[index] = await availableDropdownValues(
           modTrigger,
@@ -372,10 +365,8 @@
         const mapTrigger = await waitForFieldTrigger("Map");
         await chooseDropdownValue(mapTrigger, targetMaps[index], "map");
         await selectSegment(segment.number);
-        await waitForFieldValue("Map", targetMaps[index]);
         const modTrigger = await waitForFieldTrigger("Mod");
         await chooseDropdownValue(modTrigger, compatibleMods[index], "mod");
-        await waitForFieldValue("Mod", compatibleMods[index]);
 
         const save = saveButton();
         if (!save) throw new Error("Could not find Refrag’s Save button.");
