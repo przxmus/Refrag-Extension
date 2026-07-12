@@ -1,0 +1,31 @@
+name: Beta build
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beta-release
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - name: Package extension
+        run: cd dist && zip -r ../refrag-routine-shuffler-beta-${GITHUB_SHA::7}.zip .
+      - name: Create beta release with generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "beta-${GITHUB_SHA::7}" "refrag-routine-shuffler-beta-${GITHUB_SHA::7}.zip" --prerelease --generate-notes --title "Beta ${GITHUB_SHA::7}" --target "$GITHUB_SHA"
