@@ -82,22 +82,35 @@
     if (!labelNode) return null;
 
     const labelRect = labelNode.getBoundingClientRect();
-    return Array.from(document.querySelectorAll("*")).find((element) => {
-      if (
-        element === document.body ||
-        element === document.documentElement ||
-        elementText(element) !== value ||
-        !element.getClientRects().length
-      )
-        return false;
-      const rect = element.getBoundingClientRect();
-      return (
-        rect.width > 100 &&
-        rect.left >= labelRect.left - 2 &&
-        rect.top >= labelRect.bottom - 2 &&
-        rect.top <= labelRect.bottom + 88
+    const candidates = Array.from(document.querySelectorAll("*"))
+      .filter((element) => {
+        if (
+          element === document.body ||
+          element === document.documentElement ||
+          !element.getClientRects().length
+        )
+          return false;
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.width > 100 &&
+          rect.left >= labelRect.left - 2 &&
+          rect.top >= labelRect.bottom - 2 &&
+          rect.top <= labelRect.bottom + 88
+        );
+      })
+      .sort(
+        (left, right) =>
+          left.getBoundingClientRect().width *
+            left.getBoundingClientRect().height -
+          right.getBoundingClientRect().width *
+            right.getBoundingClientRect().height,
       );
-    });
+
+    return (
+      candidates.find((element) => elementText(element) === value) ||
+      candidates[0] ||
+      null
+    );
   }
 
   async function waitForFieldTrigger(label, value) {
