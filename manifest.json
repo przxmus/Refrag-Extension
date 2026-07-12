@@ -10,9 +10,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://play.refrag.gg/routines*"],
+      "matches": ["https://play.refrag.gg/routines/*/edit"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://play.refrag.gg/routines*"],
+      "js": ["routine-links.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ]
 }

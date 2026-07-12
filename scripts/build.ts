@@ -11,6 +11,7 @@ await mkdir(dist, { recursive: true });
 await build({
   entryPoints: {
     content: join(root, "src/content/index.ts"),
+    "routine-links": join(root, "src/content/routine-links.ts"),
     popup: join(root, "src/popup/index.ts"),
   },
   outdir: dist,
