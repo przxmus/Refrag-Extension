@@ -49,10 +49,19 @@ async function openRoutine(card: HTMLElement): Promise<void> {
       !["Author", "Status", "Length"].some((label) => same(value, label))
     );
   });
-  const editAction =
-    title?.parentElement?.parentElement?.querySelector<HTMLElement>(
-      ".cursor-pointer",
-    );
+  const actions = title?.parentElement?.parentElement
+    ? [
+        ...title.parentElement.parentElement.querySelectorAll<HTMLElement>(
+          ".cursor-pointer",
+        ),
+      ]
+    : [];
+  const status = [
+    ...card.querySelectorAll<HTMLElement>("h1, h2, h3, [role='heading']"),
+  ].map(text);
+  const editAction = status.some((value) => same(value, "Draft"))
+    ? actions.at(-1)
+    : actions[0];
   if (!editAction) return;
 
   openingRoutine = true;
