@@ -517,74 +517,79 @@
     return crypto.getRandomValues(new Uint32Array(1))[0] % maxExclusive;
   }
 
+  function shuffledCopy(items) {
+    const result = [...items];
+
+    for (let index = result.length - 1; index > 0; index -= 1) {
+      const swapIndex = randomUint(index + 1);
+
+      [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+    }
+
+    return result;
+  }
+
+  function hasAdjacentRepeats(values) {
+    return values.some(
+      (value, index) => index > 0 && sameValue(value, values[index - 1]),
+    );
+  }
+
   function shuffledValidPairs(segments) {
-    const source = segments.map((segment, sourceIndex) => ({
-      ...segment,
-      sourceIndex,
-    }));
+    const originalMaps = segments.map((segment) => segment.map);
+    const originalMods = segments.map((segment) => segment.mod);
 
     let best = null;
-    let bestUnchanged = Infinity;
+    let bestScore = Infinity;
 
-    // Tasujemy istniejące pary mapa + mod.
-    // Dzięki temu kombinacje są już poprawne dla Refrag.
-    for (let attempt = 0; attempt < 2000; attempt += 1) {
-      const remaining = [...source];
-      const candidate = [];
-      let failed = false;
+    for (let attempt = 0; attempt < 5000; attempt += 1) {
+      const maps = shuffledCopy(originalMaps);
+      const mods = shuffledCopy(originalMods);
 
-      for (let position = 0; position < source.length; position += 1) {
-        const previous = candidate[position - 1];
-
-        let choices = remaining.filter(
-          (item) =>
-            !previous ||
-            (!sameValue(item.map, previous.map) &&
-              !sameValue(item.mod, previous.mod)),
-        );
-
-        if (!choices.length) {
-          failed = true;
-          break;
-        }
-
-        const movedChoices = choices.filter(
-          (item) => item.sourceIndex !== position,
-        );
-
-        if (movedChoices.length) {
-          choices = movedChoices;
-        }
-
-        const selected = choices[randomUint(choices.length)];
-
-        candidate.push(selected);
-
-        remaining.splice(remaining.indexOf(selected), 1);
-      }
-
-      if (failed) {
+      // Nie pozwalamy, aby ta sama mapa albo ten sam tryb
+      // występowały w dwóch sąsiednich segmentach.
+      if (hasAdjacentRepeats(maps) || hasAdjacentRepeats(mods)) {
         continue;
       }
 
-      const unchanged = candidate.filter(
-        (item, index) => item.sourceIndex === index,
+      const candidate = segments.map((segment, index) => ({
+        ...segment,
+        map: maps[index],
+        mod: mods[index],
+        sourceIndex: index,
+      }));
+
+      const unchangedMaps = candidate.filter((item, index) =>
+        sameValue(item.map, segments[index].map),
       ).length;
 
-      if (unchanged < bestUnchanged) {
+      const unchangedMods = candidate.filter((item, index) =>
+        sameValue(item.mod, segments[index].mod),
+      ).length;
+
+      const unchangedPairs = candidate.filter(
+        (item, index) =>
+          sameValue(item.map, segments[index].map) &&
+          sameValue(item.mod, segments[index].mod),
+      ).length;
+
+      // Najważniejsze jest rozbicie starych kombinacji.
+      const score = unchangedPairs * 100 + unchangedMaps + unchangedMods;
+
+      if (score < bestScore) {
         best = candidate;
-        bestUnchanged = unchanged;
+        bestScore = score;
       }
 
-      if (unchanged === 0) {
+      if (unchangedPairs === 0 && unchangedMaps === 0 && unchangedMods === 0) {
         break;
       }
     }
 
     if (!best) {
       throw new Error(
-        "Could not build a shuffle without adjacent " +
-          "repeated maps or mods.",
+        "Could not independently shuffle maps and mods " +
+          "without adjacent repeats.",
       );
     }
 
