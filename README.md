@@ -1,6 +1,6 @@
 # Refrag Routine Shuffler
 
-A configurable Chrome and Brave extension that safely shuffles maps and mods in editable [Refrag](https://play.refrag.gg/) routines.
+A configurable Chrome extension that safely shuffles maps and mods in editable [Refrag](https://play.refrag.gg/) routines.
 
 The extension adds a **Shuffle** action between **Delete** and **Review & Publish / Update**. It uses Refrag's existing editor, preserves the number of occurrences of every map and mod, and never changes segment durations.
 
