@@ -40,22 +40,9 @@ function routineCardFor(title: HTMLElement): HTMLElement | undefined {
 
 async function openRoutine(card: HTMLElement): Promise<void> {
   if (openingRoutine) return;
-  const title = [
-    ...card.querySelectorAll<HTMLElement>("h1, h2, h3, [role='heading']"),
-  ].find((node) => {
-    const value = text(node);
-    return (
-      value &&
-      !["Author", "Status", "Length"].some((label) => same(value, label))
-    );
-  });
-  const actions = title?.parentElement?.parentElement
-    ? [
-        ...title.parentElement.parentElement.querySelectorAll<HTMLElement>(
-          ".cursor-pointer",
-        ),
-      ]
-    : [];
+  const actions = [
+    ...card.querySelectorAll<HTMLElement>(".cursor-pointer"),
+  ].filter((action) => action !== card);
   const status = [
     ...card.querySelectorAll<HTMLElement>("h1, h2, h3, [role='heading']"),
   ].map(text);
