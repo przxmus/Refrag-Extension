@@ -57,8 +57,13 @@
     ).find((element) => directText(element) === label);
     if (!labelNode) return null;
 
-    const scope = labelNode.parentElement;
-    return scope?.querySelector("select") || null;
+    let scope = labelNode;
+    for (let depth = 0; scope && depth < 5; depth += 1) {
+      const select = scope.querySelector("select");
+      if (select) return select;
+      scope = scope.parentElement;
+    }
+    return null;
   }
 
   async function waitForEditor() {
@@ -172,6 +177,8 @@
     button.id = BUTTON_ID;
     button.type = "button";
     button.textContent = "Shuffle";
+    button.style.backgroundColor = "#4d7c61";
+    button.style.color = "#ffffff";
     button.title =
       "Shuffle maps while keeping all map, mod, and duration counts unchanged";
     button.addEventListener("click", () => {
