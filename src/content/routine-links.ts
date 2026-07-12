@@ -41,7 +41,11 @@ function routineCardFor(title: HTMLElement): HTMLElement | undefined {
 async function openRoutine(card: HTMLElement): Promise<void> {
   if (openingRoutine) return;
   const actions = [
-    ...card.querySelectorAll<HTMLElement>(".cursor-pointer"),
+    ...new Set(
+      card.querySelectorAll<HTMLElement>(
+        "button, [role='button'], .cursor-pointer",
+      ),
+    ),
   ].filter((action) => action !== card);
   const status = [
     ...card.querySelectorAll<HTMLElement>("h1, h2, h3, [role='heading']"),
