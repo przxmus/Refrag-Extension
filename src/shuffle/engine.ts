@@ -230,6 +230,7 @@ export function generateShuffle(
   const originalPairs = new Set(segments.map((x) => pairKey(x.map, x.mod)));
   let best: Segment[] | undefined;
   let bestScore = Infinity;
+  let bestScoreTies = 0;
   let valid = 0;
 
   for (
@@ -245,6 +246,12 @@ export function generateShuffle(
       if (++nodes > config.runtime.maxSearchNodesPerAttempt) return false;
       if (position === segments.length) return true;
       const before = segments[position]!;
+      const mapPriority = new Map(
+        maps.filter((item) => item.count).map((item) => [item.key, random()]),
+      );
+      const modPriority = new Map(
+        mods.filter((item) => item.count).map((item) => [item.key, random()]),
+      );
       const choices = maps
         .flatMap((map) => mods.map((mod) => ({ map, mod })))
         .filter(({ map, mod }) => {
@@ -307,16 +314,24 @@ export function generateShuffle(
         })
         .map((choice) => ({
           ...choice,
-          score:
-            penalty(
-              before,
-              choice.map.value,
-              choice.mod.value,
-              originalPairs,
-              config,
-            ) + random(),
+          mapPriority: mapPriority.get(choice.map.key)!,
+          modPriority: modPriority.get(choice.mod.key)!,
+          penalty: penalty(
+            before,
+            choice.map.value,
+            choice.mod.value,
+            originalPairs,
+            config,
+          ),
+          tieBreaker: random(),
         }))
-        .sort((a, b) => a.score - b.score);
+        .sort(
+          (a, b) =>
+            a.penalty - b.penalty ||
+            a.mapPriority - b.mapPriority ||
+            a.modPriority - b.modPriority ||
+            a.tieBreaker - b.tieBreaker,
+        );
       for (const choice of choices) {
         const key = pairKey(choice.map.value, choice.mod.value);
         choice.map.count--;
@@ -363,8 +378,12 @@ export function generateShuffle(
     if (score < bestScore) {
       best = [...result];
       bestScore = score;
+      bestScoreTies = 1;
+    } else if (score === bestScore) {
+      bestScoreTies++;
+      if (random() < 1 / bestScoreTies) best = [...result];
     }
-    if (!score || valid >= config.runtime.validPlansToCompare) break;
+    if (valid >= config.runtime.validPlansToCompare) break;
   }
   if (!best)
     throw new Error(

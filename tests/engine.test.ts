@@ -20,6 +20,13 @@ const segments: Segment[] = [
 ];
 
 const deterministic = (): number => 0.25;
+const seededRandom = (seed: number): (() => number) => {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state / 4_294_967_296;
+  };
+};
 
 describe("generateShuffle", () => {
   test("keeps automatic publishing disabled by default", () => {
@@ -139,5 +146,67 @@ describe("generateShuffle", () => {
     expect(
       progress.some((detail) => detail.includes("Minimum repeat gaps")),
     ).toBeTrue();
+  });
+
+  test("compares the requested number of equally scoring plans", () => {
+    const config = cloneConfig(DEFAULT_CONFIG);
+    config.combinations.preventAnyOriginalCombination = false;
+    config.combinations.preventDuplicatesInResult = false;
+    config.combinations.requireDifferentAtSamePosition = false;
+    config.combinations.preferNewCombinations = false;
+    config.combinations.preferUniqueCombinations = false;
+    config.maps.minimumRepeatGap = 0;
+    config.maps.preferDifferentAtSamePosition = false;
+    config.mods.minimumRepeatGap = 0;
+    config.mods.preferDifferentAtSamePosition = false;
+    config.runtime.generationAttempts = 5;
+    config.runtime.validPlansToCompare = 5;
+    let attempts = 0;
+
+    generateShuffle(segments, config, seededRandom(1), () => attempts++);
+
+    expect(attempts).toBe(5);
+  });
+
+  test("does not give maps extra lottery entries for available mods", () => {
+    const varied: Segment[] = [
+      ["Cache", "AngleTrainer"],
+      ["Anubis", "Xfire"],
+      ["Cache", "SprayLegend"],
+      ["Anubis", "Prefire"],
+      ["Nuke", "Blitz"],
+      ["Inferno", "Rush"],
+      ["Anubis", "Crossfire"],
+      ["Nuke", "Repeek"],
+      ["Ancient", "Xfire"],
+      ["Nuke", "Clutch"],
+      ["Ancient", "Rush"],
+      ["Inferno", "Crossfire"],
+      ["Ancient", "Repeek"],
+      ["Inferno", "AngleTrainer"],
+    ].map(([map, mod], index) => ({
+      duration: "2 minutes",
+      map: map!,
+      mod: mod!,
+      number: index + 1,
+    }));
+    const config = cloneConfig(DEFAULT_CONFIG);
+    config.combinations.preventAnyOriginalCombination = false;
+    config.runtime.generationAttempts = 1;
+    config.runtime.validPlansToCompare = 1;
+    const firstMaps = new Map<string, number>();
+
+    for (let seed = 1; seed <= 100; seed++) {
+      const result = generateShuffle(varied, config, seededRandom(seed));
+      firstMaps.set(result[0]!.map, (firstMaps.get(result[0]!.map) ?? 0) + 1);
+    }
+
+    expect([...firstMaps.keys()].sort()).toEqual([
+      "Ancient",
+      "Anubis",
+      "Inferno",
+      "Nuke",
+    ]);
+    expect(Math.min(...firstMaps.values())).toBeGreaterThanOrEqual(15);
   });
 });
