@@ -388,13 +388,37 @@ async function shuffle(button: HTMLElement): Promise<void> {
   try {
     const original = cards().map(readCard);
     const config = await loadConfig();
-    const plan = await generateShuffleAsync(original, config);
+    const plan = await generateShuffleAsync(original, config, (progress) => {
+      interactionLock.update({
+        current:
+          progress.stage -
+          1 +
+          progress.attempt / Math.max(1, progress.attempts),
+        detail: `${progress.detail} · attempt ${progress.attempt}/${progress.attempts}`,
+        title: "Building shuffle plan",
+        total: progress.stages,
+      });
+    });
     const result = plan.segments;
-    if (plan.relaxedConstraints.length)
+    if (plan.relaxedConstraints.length) {
       console.warn(
         "[Refrag+] Impossible shuffle rules were relaxed:",
         plan.relaxedConstraints.join(", "),
       );
+      interactionLock.update({
+        current: 0,
+        detail: `Adjusted impossible rules: ${plan.relaxedConstraints.join(", ")}`,
+        title: "Applying the closest valid plan",
+        total: result.length,
+      });
+    } else {
+      interactionLock.update({
+        current: 0,
+        detail: "All configured rules are satisfied",
+        title: "Applying shuffle",
+        total: result.length,
+      });
+    }
     if (config.runtime.logPlan)
       console.table(
         result.map((target, i) => ({
@@ -407,22 +431,53 @@ async function shuffle(button: HTMLElement): Promise<void> {
       const target = result[i]!,
         before = original[i]!;
       button.textContent = `${i + 1}/${result.length}`;
+      interactionLock.update({
+        current: i,
+        detail: `Segment ${target.number}: ${target.map} / ${target.mod} / ${target.duration}`,
+        title: "Updating routine segments",
+        total: result.length,
+      });
       if (
         config.runtime.saveOnlyChangedSegments &&
         same(before.map, target.map) &&
         same(before.mod, target.mod) &&
         same(before.duration, target.duration)
-      )
+      ) {
+        interactionLock.update({
+          current: i + 1,
+          detail: `Segment ${target.number} already matches the plan`,
+          title: "Updating routine segments",
+          total: result.length,
+        });
         continue;
+      }
       await selectSegment(target.number);
       await choose("Map", target.map);
       await choose("Mod", target.mod);
       await chooseDuration(target.duration);
       await save(target);
+      interactionLock.update({
+        current: i + 1,
+        detail: `Saved segment ${target.number}`,
+        title: "Updating routine segments",
+        total: result.length,
+      });
     }
     if (config.runtime.autoPublish) {
       button.textContent = "Publishing…";
+      interactionLock.update({
+        current: 0,
+        detail: "Confirming the updated routine in Refrag",
+        title: "Publishing routine",
+        total: 1,
+      });
       await publishRoutine();
+      interactionLock.update({
+        current: 1,
+        detail: "Routine published successfully",
+        title: "Publishing routine",
+        total: 1,
+      });
     }
     button.textContent = "Shuffled";
     await pause(1200);
