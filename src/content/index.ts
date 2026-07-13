@@ -318,18 +318,42 @@ async function chooseDuration(value: string): Promise<void> {
   if (!input)
     throw new Error("Could not find Refrag's Estimated Duration input.");
   const minutes = durationInMinutes(value);
-  if (Number(input.value) === minutes) return;
   const valueSetter = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
     "value",
   )?.set;
-  valueSetter?.call(input, String(minutes));
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  await waitFor(
-    () => Number(inputFor("Estimated Duration")?.value) === minutes,
-    `Could not confirm duration “${value}”.`,
-  );
+  if (!valueSetter)
+    throw new Error("Could not update Refrag's Estimated Duration input.");
+
+  // Refrag controls this field from application state. A single native setter
+  // can briefly change the DOM without committing that state, after which the
+  // old value returns during save. Clear, enter and blur the field just like a
+  // real edit, then require the value to remain stable before continuing.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    input.focus();
+    valueSetter.call(input, "");
+    input.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        inputType: "deleteContentBackward",
+      }),
+    );
+    valueSetter.call(input, String(minutes));
+    input.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        data: String(minutes),
+        inputType: "insertText",
+      }),
+    );
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.blur();
+    await pause(250);
+    if (Number(inputFor("Estimated Duration")?.value) !== minutes) continue;
+    await pause(350);
+    if (Number(inputFor("Estimated Duration")?.value) === minutes) return;
+  }
+  throw new Error(`Could not confirm duration “${value}”.`);
 }
 
 async function save(segment: Segment): Promise<void> {
@@ -354,6 +378,11 @@ async function save(segment: Segment): Promise<void> {
     );
   }, `Segment ${segment.number} was not saved.`);
   await pause(900);
+  const savedCard = cardFor(segment.number);
+  if (!savedCard || !same(readCard(savedCard).duration, segment.duration))
+    throw new Error(
+      `Segment ${segment.number} reverted to a different duration after saving.`,
+    );
 }
 
 async function publishRoutine(): Promise<void> {
