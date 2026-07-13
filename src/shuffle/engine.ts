@@ -1,8 +1,22 @@
 import type { ShuffleConfig } from "../shared/config";
-import { validateConfig } from "../shared/config";
+import { cloneConfig, validateConfig } from "../shared/config";
 import type { Segment } from "../shared/types";
 
 type Random = () => number;
+type AttemptProgress = (attempt: number, total: number) => void;
+
+export interface ShuffleProgress {
+  attempt: number;
+  attempts: number;
+  detail: string;
+  stage: number;
+  stages: number;
+}
+
+export interface ShufflePlan {
+  relaxedConstraints: string[];
+  segments: Segment[];
+}
 interface PoolItem {
   value: string;
   key: string;
@@ -198,6 +212,7 @@ export function generateShuffle(
   segments: Segment[],
   config: ShuffleConfig,
   random: Random = Math.random,
+  onAttempt?: AttemptProgress,
 ): Segment[] {
   validateConfig(config);
   if (segments.length < 2)
@@ -222,6 +237,7 @@ export function generateShuffle(
     attempt < config.runtime.generationAttempts;
     attempt++
   ) {
+    onAttempt?.(attempt + 1, config.runtime.generationAttempts);
     const result: Segment[] = [];
     const used = new Map<string, number>();
     let nodes = 0;
@@ -355,4 +371,162 @@ export function generateShuffle(
       "No valid shuffle exists for these settings. Relax one or more constraints and try again.",
     );
   return best;
+}
+
+interface RelaxationStage {
+  config: ShuffleConfig;
+  relaxedConstraints: string[];
+}
+
+function relaxationStages(config: ShuffleConfig): RelaxationStage[] {
+  const stages: RelaxationStage[] = [
+    { config: cloneConfig(config), relaxedConstraints: [] },
+  ];
+  const current = cloneConfig(config);
+  const relaxed: string[] = [];
+  const add = (label: string, change: () => boolean): void => {
+    if (!change()) return;
+    relaxed.push(label);
+    stages.push({
+      config: cloneConfig(current),
+      relaxedConstraints: [...relaxed],
+    });
+  };
+
+  add("Exclude original combinations", () => {
+    if (!current.combinations.preventAnyOriginalCombination) return false;
+    current.combinations.preventAnyOriginalCombination = false;
+    return true;
+  });
+  add("Change every combination", () => {
+    if (!current.combinations.requireDifferentAtSamePosition) return false;
+    current.combinations.requireDifferentAtSamePosition = false;
+    return true;
+  });
+  add("Minimum repeat gaps", () => {
+    if (
+      !current.combinations.minimumRepeatGap &&
+      !current.maps.minimumRepeatGap &&
+      !current.mods.minimumRepeatGap
+    )
+      return false;
+    current.combinations.minimumRepeatGap = 0;
+    current.maps.minimumRepeatGap = 0;
+    current.mods.minimumRepeatGap = 0;
+    return true;
+  });
+  add("No duplicate combinations", () => {
+    if (!current.combinations.preventDuplicatesInResult) return false;
+    current.combinations.preventDuplicatesInResult = false;
+    return true;
+  });
+  add("Group segments by map", () => {
+    if (!current.maps.groupTogether) return false;
+    current.maps.groupTogether = false;
+    return true;
+  });
+  add("Change every map and mod", () => {
+    if (
+      !current.maps.requireDifferentAtSamePosition &&
+      !current.mods.requireDifferentAtSamePosition
+    )
+      return false;
+    current.maps.requireDifferentAtSamePosition = false;
+    current.mods.requireDifferentAtSamePosition = false;
+    return true;
+  });
+  return stages;
+}
+
+function safePairRotation(
+  segments: Segment[],
+  config: ShuffleConfig,
+): Segment[] {
+  let bestShift = 1;
+  let mostChanges = -1;
+  for (let shift = 1; shift < segments.length; shift++) {
+    const changes = segments.reduce((count, segment, index) => {
+      const donor = segments[(index + shift) % segments.length]!;
+      return (
+        count +
+        Number(
+          pairKey(segment.map, segment.mod) !== pairKey(donor.map, donor.mod),
+        )
+      );
+    }, 0);
+    if (changes > mostChanges) {
+      bestShift = shift;
+      mostChanges = changes;
+    }
+  }
+  const result = segments.map((segment, index) => {
+    const donor = segments[(index + bestShift) % segments.length]!;
+    return { ...segment, map: donor.map, mod: donor.mod };
+  });
+  assignDurations(segments, result, config.runtime.durationAssignment);
+  return result;
+}
+
+export function generateShufflePlan(
+  segments: Segment[],
+  config: ShuffleConfig,
+  random: Random = Math.random,
+  onProgress?: (progress: ShuffleProgress) => void,
+): ShufflePlan {
+  validateConfig(config);
+  if (segments.length < 2)
+    throw new Error("At least two segments are required to shuffle a routine.");
+
+  const stages = relaxationStages(config);
+  for (let index = 0; index < stages.length; index++) {
+    const stage = stages[index]!;
+    const searchConfig = cloneConfig(stage.config);
+    searchConfig.runtime.generationAttempts = Math.min(
+      searchConfig.runtime.generationAttempts,
+      30,
+    );
+    searchConfig.runtime.validPlansToCompare = Math.min(
+      searchConfig.runtime.validPlansToCompare,
+      10,
+    );
+    searchConfig.runtime.maxSearchNodesPerAttempt = Math.min(
+      searchConfig.runtime.maxSearchNodesPerAttempt,
+      10_000,
+    );
+    try {
+      const result = generateShuffle(
+        segments,
+        searchConfig,
+        random,
+        (attempt, attempts) =>
+          onProgress?.({
+            attempt,
+            attempts,
+            detail: stage.relaxedConstraints.length
+              ? `Trying without: ${stage.relaxedConstraints.at(-1)}`
+              : "Checking all configured rules",
+            stage: index + 1,
+            stages: stages.length + 1,
+          }),
+      );
+      return { relaxedConstraints: stage.relaxedConstraints, segments: result };
+    } catch {
+      // The next stage progressively converts impossible hard rules to preferences.
+    }
+  }
+
+  onProgress?.({
+    attempt: 1,
+    attempts: 1,
+    detail: "Using a safe rotation of existing valid pairs",
+    stage: stages.length + 1,
+    stages: stages.length + 1,
+  });
+  return {
+    relaxedConstraints: [
+      ...stages.at(-1)!.relaxedConstraints,
+      "Search limits (safe pair rotation used)",
+    ],
+    segments: safePairRotation(segments, config),
+  };
 }

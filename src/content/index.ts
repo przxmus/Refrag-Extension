@@ -1,6 +1,11 @@
 import { loadConfig, type ShuffleConfig } from "../shared/config";
 import type { Segment } from "../shared/types";
-import { generateShuffle, normalize } from "../shuffle/engine";
+import {
+  generateShufflePlan,
+  normalize,
+  type ShufflePlan,
+  type ShuffleProgress,
+} from "../shuffle/engine";
 import { findPublishConfirmation, findReviewAction } from "./actions";
 import { acquireInteractionLock } from "./interaction-lock";
 import { durationInMinutes } from "./duration";
@@ -14,11 +19,12 @@ let running = false;
 async function generateShuffleAsync(
   segments: Segment[],
   config: ShuffleConfig,
-): Promise<Segment[]> {
+  onProgress?: (progress: ShuffleProgress) => void,
+): Promise<ShufflePlan> {
   const workerUrl = chrome.runtime?.getURL("shuffle-worker.js");
   if (!workerUrl) {
     await pause(0);
-    return generateShuffle(segments, config);
+    return generateShufflePlan(segments, config, Math.random, onProgress);
   }
   const workerSource = await fetch(workerUrl).then((response) => {
     if (!response.ok) throw new Error("Could not load the shuffle worker.");
@@ -27,17 +33,30 @@ async function generateShuffleAsync(
   const blobUrl = URL.createObjectURL(
     new Blob([workerSource], { type: "text/javascript" }),
   );
-  return new Promise<Segment[]>((resolve, reject) => {
+  return new Promise<ShufflePlan>((resolve, reject) => {
     const worker = new Worker(blobUrl);
     const finish = () => {
       worker.terminate();
       URL.revokeObjectURL(blobUrl);
     };
     worker.addEventListener("message", (event: MessageEvent) => {
+      const response = event.data as {
+        error?: string;
+        progress?: ShuffleProgress;
+        relaxedConstraints?: string[];
+        result?: Segment[];
+      };
+      if (response.progress) {
+        onProgress?.(response.progress);
+        return;
+      }
       finish();
-      const response = event.data as { error?: string; result?: Segment[] };
       if (response.error) reject(new Error(response.error));
-      else if (response.result) resolve(response.result);
+      else if (response.result)
+        resolve({
+          relaxedConstraints: response.relaxedConstraints ?? [],
+          segments: response.result,
+        });
       else reject(new Error("Shuffle worker returned an invalid response."));
     });
     worker.addEventListener("error", () => {
@@ -369,7 +388,13 @@ async function shuffle(button: HTMLElement): Promise<void> {
   try {
     const original = cards().map(readCard);
     const config = await loadConfig();
-    const result = await generateShuffleAsync(original, config);
+    const plan = await generateShuffleAsync(original, config);
+    const result = plan.segments;
+    if (plan.relaxedConstraints.length)
+      console.warn(
+        "[Refrag+] Impossible shuffle rules were relaxed:",
+        plan.relaxedConstraints.join(", "),
+      );
     if (config.runtime.logPlan)
       console.table(
         result.map((target, i) => ({
@@ -448,7 +473,9 @@ declare global {
 }
 window.RefragRoutineShuffler = {
   async preview() {
-    return generateShuffleAsync(cards().map(readCard), await loadConfig());
+    return (
+      await generateShuffleAsync(cards().map(readCard), await loadConfig())
+    ).segments;
   },
   async shuffle() {
     const button = document.getElementById(BUTTON_ID);

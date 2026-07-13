@@ -3,6 +3,7 @@ import { cloneConfig, DEFAULT_CONFIG } from "../src/shared/config";
 import type { Segment } from "../src/shared/types";
 import {
   generateShuffle,
+  generateShufflePlan,
   normalize,
   validateAssignment,
 } from "../src/shuffle/engine";
@@ -104,5 +105,39 @@ describe("generateShuffle", () => {
     const result = generateShuffle(segments, config, deterministic);
     expect(result).toHaveLength(segments.length);
     expect(() => validateAssignment(segments, result, config)).not.toThrow();
+  });
+
+  test("relaxes impossible settings instead of failing the shuffle", () => {
+    const impossible = segments.map((segment) => ({
+      ...segment,
+      map: "Mirage",
+      mod: "Prefire",
+    }));
+    const config = cloneConfig(DEFAULT_CONFIG);
+    const plan = generateShufflePlan(impossible, config, deterministic);
+
+    expect(plan.segments).toHaveLength(impossible.length);
+    expect(plan.relaxedConstraints).toContain("Exclude original combinations");
+    expect(
+      plan.segments.every((segment) => segment.map === "Mirage"),
+    ).toBeTrue();
+    expect(
+      plan.segments.every((segment) => segment.mod === "Prefire"),
+    ).toBeTrue();
+  });
+
+  test("reports generation progress and the relaxed blocking rule", () => {
+    const config = cloneConfig(DEFAULT_CONFIG);
+    config.maps.minimumRepeatGap = 7;
+    const progress: string[] = [];
+    const plan = generateShufflePlan(segments, config, deterministic, (event) =>
+      progress.push(event.detail),
+    );
+
+    expect(plan.segments).toHaveLength(segments.length);
+    expect(plan.relaxedConstraints).toContain("Minimum repeat gaps");
+    expect(
+      progress.some((detail) => detail.includes("Minimum repeat gaps")),
+    ).toBeTrue();
   });
 });
