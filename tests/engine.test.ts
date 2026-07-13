@@ -209,4 +209,45 @@ describe("generateShuffle", () => {
     ]);
     expect(Math.min(...firstMaps.values())).toBeGreaterThanOrEqual(15);
   });
+
+  test("prefers plans without obvious alternating map patterns", () => {
+    const varied: Segment[] = [
+      "Cache",
+      "Anubis",
+      "Cache",
+      "Anubis",
+      "Nuke",
+      "Inferno",
+      "Anubis",
+      "Nuke",
+      "Ancient",
+      "Nuke",
+      "Ancient",
+      "Inferno",
+      "Ancient",
+      "Inferno",
+    ].map((map, index) => ({
+      duration: "2 minutes",
+      map,
+      mod: `Mod ${index + 1}`,
+      number: index + 1,
+    }));
+    const config = cloneConfig(DEFAULT_CONFIG);
+    config.combinations.preventAnyOriginalCombination = false;
+    config.combinations.preventDuplicatesInResult = false;
+    config.combinations.requireDifferentAtSamePosition = false;
+    config.combinations.preferNewCombinations = false;
+    config.combinations.preferUniqueCombinations = false;
+    config.mods.minimumRepeatGap = 0;
+    config.mods.preferDifferentAtSamePosition = false;
+    config.runtime.generationAttempts = 30;
+    config.runtime.validPlansToCompare = 20;
+
+    const result = generateShuffle(varied, config, seededRandom(7));
+    const alternatingRepeats = result.filter(
+      (segment, index) => index >= 2 && segment.map === result[index - 2]!.map,
+    );
+
+    expect(alternatingRepeats.length).toBeLessThanOrEqual(1);
+  });
 });

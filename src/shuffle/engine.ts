@@ -125,6 +125,31 @@ function penalty(
   return value;
 }
 
+function sequencePatternPenalty(
+  result: Segment[],
+  map: string,
+  mod: string,
+): number {
+  let value = 0;
+  if (result.length >= 2) {
+    const twoBack = result.at(-2)!;
+    if (normalize(twoBack.map) === normalize(map)) value += 3;
+    if (normalize(twoBack.mod) === normalize(mod)) value += 1;
+  }
+  if (result.length >= 3 && normalize(result.at(-3)!.map) === normalize(map))
+    value += 1;
+  return value;
+}
+
+function totalSequencePatternPenalty(result: Segment[]): number {
+  return result.reduce(
+    (score, segment, index) =>
+      score +
+      sequencePatternPenalty(result.slice(0, index), segment.map, segment.mod),
+    0,
+  );
+}
+
 export function validateAssignment(
   original: Segment[],
   result: Segment[],
@@ -316,13 +341,15 @@ export function generateShuffle(
           ...choice,
           mapPriority: mapPriority.get(choice.map.key)!,
           modPriority: modPriority.get(choice.mod.key)!,
-          penalty: penalty(
-            before,
-            choice.map.value,
-            choice.mod.value,
-            originalPairs,
-            config,
-          ),
+          penalty:
+            penalty(
+              before,
+              choice.map.value,
+              choice.mod.value,
+              originalPairs,
+              config,
+            ) +
+            sequencePatternPenalty(result, choice.map.value, choice.mod.value),
           tieBreaker: random(),
         }))
         .sort(
@@ -373,7 +400,7 @@ export function generateShuffle(
     const score = result.reduce(
       (sum, x, i) =>
         sum + penalty(segments[i]!, x.map, x.mod, originalPairs, config),
-      duplicatePenalty,
+      duplicatePenalty + totalSequencePatternPenalty(result),
     );
     if (score < bestScore) {
       best = [...result];
