@@ -391,12 +391,14 @@ async function shuffle(button: HTMLElement): Promise<void> {
     const plan = await generateShuffleAsync(original, config, (progress) => {
       interactionLock.update({
         current:
-          progress.stage -
-          1 +
-          progress.attempt / Math.max(1, progress.attempts),
+          ((progress.stage -
+            1 +
+            progress.attempt / Math.max(1, progress.attempts)) /
+            progress.stages) *
+          100,
         detail: `${progress.detail} · attempt ${progress.attempt}/${progress.attempts}`,
         title: "Building shuffle plan",
-        total: progress.stages,
+        total: 100,
       });
     });
     const result = plan.segments;
