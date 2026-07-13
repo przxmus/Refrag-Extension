@@ -325,6 +325,11 @@ async function chooseDuration(value: string): Promise<void> {
   if (!valueSetter)
     throw new Error("Could not update Refrag's Estimated Duration input.");
 
+  if (Number(input.value) === minutes) {
+    await pause(250);
+    if (Number(inputFor("Estimated Duration")?.value) === minutes) return;
+  }
+
   // Refrag controls this field from application state. A single native setter
   // can briefly change the DOM without committing that state, after which the
   // old value returns during save. Clear, enter and blur the field just like a
@@ -338,6 +343,8 @@ async function chooseDuration(value: string): Promise<void> {
         inputType: "deleteContentBackward",
       }),
     );
+    await pause(150);
+    if (inputFor("Estimated Duration")?.value !== "") continue;
     valueSetter.call(input, String(minutes));
     input.dispatchEvent(
       new InputEvent("input", {
@@ -348,9 +355,9 @@ async function chooseDuration(value: string): Promise<void> {
     );
     input.dispatchEvent(new Event("change", { bubbles: true }));
     input.blur();
-    await pause(250);
-    if (Number(inputFor("Estimated Duration")?.value) !== minutes) continue;
     await pause(350);
+    if (Number(inputFor("Estimated Duration")?.value) !== minutes) continue;
+    await pause(500);
     if (Number(inputFor("Estimated Duration")?.value) === minutes) return;
   }
   throw new Error(`Could not confirm duration “${value}”.`);
@@ -377,7 +384,7 @@ async function save(segment: Segment): Promise<void> {
       same(state.duration, segment.duration)
     );
   }, `Segment ${segment.number} was not saved.`);
-  await pause(900);
+  await pause(1500);
   const savedCard = cardFor(segment.number);
   if (!savedCard || !same(readCard(savedCard).duration, segment.duration))
     throw new Error(
